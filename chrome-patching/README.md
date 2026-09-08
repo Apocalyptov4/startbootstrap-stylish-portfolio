@@ -15,6 +15,9 @@ any endpoint.
     scripts/
       Update-Chrome.ps1          Check and remediate a single machine.
       Get-ChromeFleetStatus.ps1  Read-only audit across many machines.
+      Set-ChromeRelaunchPolicy.ps1
+                                 Make Chrome finish its own updates, so
+                                 nobody has to chase the user.
 
 ## Quick start
 
@@ -58,6 +61,41 @@ same:
 
 `computers.txt` is git-ignored. Real machine names must not land in this
 repo.
+
+## Making Chrome finish the job
+
+Patching the files does not make a machine safe — Chrome keeps the old
+build loaded until it restarts, and users leave it open for weeks. Killing
+it for them destroys unsaved work and generates tickets.
+
+Chrome has a mechanism for exactly this. Set it and Chrome warns the user,
+escalates, then relaunches itself and restores their tabs:
+
+    .\scripts\Set-ChromeRelaunchPolicy.ps1            # 4 hours, forced
+    .\scripts\Set-ChromeRelaunchPolicy.ps1 -Hours 1   # shortest Chrome allows
+    .\scripts\Set-ChromeRelaunchPolicy.ps1 -CheckOnly
+    .\scripts\Set-ChromeRelaunchPolicy.ps1 -Remove
+
+Run it *after* the update — the timer starts when Chrome sees a pending
+one. Fleet-wide this belongs in GPO or Chrome Browser Cloud Management,
+but per-machine it is only a registry key under
+`HKLM\SOFTWARE\Policies\Google\Chrome`, which Backstage can write.
+
+## `STAGED` is not a failure
+
+If Chrome is open when the installer runs, the new build lands in
+`Application\<version>\` and the launcher keeps reporting the old version
+until the browser closes. A verification step that only re-reads
+`chrome.exe` will call a perfectly good update `FAILED`.
+
+`Update-Chrome.ps1` checks for this and reports `STAGED` instead. To check
+by hand:
+
+    Get-ChildItem "$env:ProgramFiles\Google\Chrome\Application" -Directory |
+      Where-Object Name -match '^\d+\.'
+
+A folder newer than the running version means the patch is done and only
+needs the restart.
 
 ## Logs
 

@@ -26,7 +26,8 @@ if($f -lt 12){Stop-Service wuauserv,bits -Force -EA 0; Remove-Item C:\Windows\So
 $e="$env:TEMP\cs.exe"; curl.exe -L -s -o $e 'https://dl.google.com/chrome/install/latest/chrome_installer.exe'
 Start-Process $e -ArgumentList '/silent','/install','--system-level','--do-not-launch-chrome' -Wait; Start-Sleep 25
 $a=(&$find|?{$_.Path -notlike '*\Users\*'}|sort {[version]$_.Ver} -desc|select -f 1).Ver
-if($a -and [version]$a -ge $min){"SUCCESS -> $a"}else{"FAILED -> $a"}
+$s=(Get-ChildItem "$env:ProgramFiles\Google\Chrome\Application" -Dir -EA 0|?{$_.Name -match '^\d+\.\d+\.\d+\.\d+$'}|sort {[version]$_.Name} -desc|select -f 1).Name
+if($a -and [version]$a -ge $min){"SUCCESS -> $a"}elseif($s -and [version]$s -ge $min){"STAGED -> $s (needs a Chrome restart)"}else{"FAILED -> $a"}
 if(@(Get-Process chrome -EA 0).Count){"NOTE: Chrome is open - user must restart it"}}
 ```
 
@@ -47,6 +48,7 @@ Some lines print nothing at all. That is normal — only the lines starting
 |---|---|---|
 | `COMPLIANT: 152.x` | Already patched | Nothing. Close the ticket. |
 | `SUCCESS -> 152.x` | Updated | See step 4. |
+| `STAGED -> 152.x` | Patched, waiting on a Chrome restart | See step 4. **Not a failure** — do not escalate. |
 | `FAILED -> ...` | Did not update | Escalate — paste the full output. |
 | No `FOUND:` line at all | Chrome was not installed | The block installs it. Confirm it should be there. |
 | `FOUND: ... \Users\...` | Per-user install | See step 5. |
@@ -62,7 +64,19 @@ Message the user:
 > and reopen it when convenient — the update takes effect on restart. No
 > reboot needed.
 
-Don't close it for them without warning; they'll lose unsaved work.
+Don't close it for them without warning; they'll lose unsaved work — open
+emails, unsubmitted forms, anything in a web app.
+
+**Better than asking, and better than killing it:** let Chrome do it
+itself. Run this on the machine and Chrome will warn the user, escalate,
+then relaunch on its own and put all their tabs back.
+
+```powershell
+.\scripts\Set-ChromeRelaunchPolicy.ps1 -Hours 4
+```
+
+Nobody has to be chased and nothing is lost. Run it after the update, not
+before — the timer starts when Chrome notices a pending update.
 
 ## 5. If a path under `C:\Users\...` appears
 

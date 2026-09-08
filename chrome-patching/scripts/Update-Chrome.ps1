@@ -81,6 +81,24 @@ function Get-ChromeInstalls {
     }
 }
 
+# ---------------------------------------------------------------------
+# A patch applied while Chrome is open is STAGED, not active: the new
+# build lands in Application\<version>\ and the launcher keeps reporting
+# the old version until the browser closes. Without this check a staged
+# -- i.e. successful -- update reads as FAILED and gets escalated.
+# ---------------------------------------------------------------------
+function Get-StagedVersion {
+    param($ChromeExePath)
+    if (-not $ChromeExePath) { return $null }
+    $appDir = Split-Path $ChromeExePath -Parent
+    if (-not (Test-Path $appDir)) { return $null }
+
+    Get-ChildItem $appDir -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } |
+        Sort-Object { [version]$_.Name } -Descending |
+        Select-Object -First 1 -ExpandProperty Name
+}
+
 function Get-FreeGB {
     $d = Get-PSDrive C -ErrorAction SilentlyContinue
     if ($d) { [math]::Round($d.Free / 1GB, 1) } else { -1 }
@@ -308,6 +326,7 @@ if ((-not $after -or [version]$after -lt $MinVersion) -and $RepairBroken -and $m
 
 # ------------------------------------------------- 8. verdict
 Head 'RESULT'
+$logAfter = $after
 if ($after -and [version]$after -ge $MinVersion) {
     Say "SUCCESS  $before  ->  $after" 'Green'
     $status = 'Fixed'
@@ -317,8 +336,25 @@ if ($after -and [version]$after -ge $MinVersion) {
         Say 'and reopen Chrome -- until then the running browser is still vulnerable.' 'Yellow'
     }
 } else {
-    Say "FAILED   still at: $(if($after){$after}else{'not installed'})" 'Red'
-    $status = 'Failed'
+    # Before calling it a failure, check whether the new build is sitting
+    # in Application\<version>\ waiting for Chrome to close.
+    $stagedPath = if ($machine) { $machine.Path } else { "$env:ProgramFiles\Google\Chrome\Application\chrome.exe" }
+    $staged = Get-StagedVersion -ChromeExePath $stagedPath
+
+    if ($staged -and ([version]$staged -ge $MinVersion)) {
+        Say "STAGED   $before  ->  $staged" 'Yellow'
+        Say ''
+        Say "The patch is installed and waiting. Chrome is holding the old build" 'Yellow'
+        Say "open, so the version on disk still reads $after until it restarts." 'Yellow'
+        Say 'This is NOT a failure -- do not escalate it.' 'Yellow'
+        $status    = 'Staged'
+        $logAfter  = $staged
+        Note 'Chrome must restart to activate the staged update. Set the relaunch'
+        Note '   policy with Set-ChromeRelaunchPolicy.ps1 so it happens on its own.'
+    } else {
+        Say "FAILED   still at: $(if($after){$after}else{'not installed'})" 'Red'
+        $status = 'Failed'
+    }
 }
 
 if ($script:Notes) {
@@ -326,7 +362,7 @@ if ($script:Notes) {
     foreach ($n in $script:Notes) { Say $n 'Yellow' }
 }
 
-"$(Get-Date -f s),$env:COMPUTERNAME,$before,$after,$status" |
+"$(Get-Date -f s),$env:COMPUTERNAME,$before,$logAfter,$status" |
     Add-Content "$script:LogDir\history.csv"
 
 Head 'Log'

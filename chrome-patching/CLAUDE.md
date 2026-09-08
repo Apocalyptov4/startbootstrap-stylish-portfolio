@@ -94,6 +94,20 @@ Backstage this is invisible to the user, so they never think to restart.
 step most likely to be skipped and it decides whether the machine is
 actually safe.
 
+**It also breaks verification.** An install run while Chrome is open is
+*staged*: the new build is written to `Application\<version>\` and the
+launcher keeps reporting the old version until the browser closes. A
+verify step that only re-reads `chrome.exe` therefore reports `FAILED` on
+an update that actually succeeded. Seen live on a machine sitting at
+`152.0.7977.77` with 99 GB free — nothing was wrong with it. Always check
+for a staged version folder before calling an update failed, or techs will
+escalate healthy machines.
+
+The fix for the underlying problem is not to kill Chrome — that destroys
+unsaved work and costs more time in tickets than the patch saved. Set
+Chrome's own relaunch policy (`Set-ChromeRelaunchPolicy.ps1`) and it
+restarts itself, restoring the user's tabs.
+
 ### 5. Stub installer needs network as SYSTEM
 `chrome_installer.exe` is ~12 MB because it downloads Chrome at install
 time. It needs outbound access from the SYSTEM context. An authenticating
@@ -137,8 +151,12 @@ failure mode 3.
 - Unknown whether the corrupt-installer-cache condition is fleet-wide or
   specific to the one machine where we found it. If it is fleet-wide, no
   NinjaOne policy change will fix it and that needs escalating.
-- Longer term, the recurring fix is Chrome's `RelaunchNotificationPeriod`
-  policy (via GPO or Chrome Browser Cloud Management), which forces a
-  browser relaunch after a set window. Chrome self-updates fine; machines
-  sit on vulnerable builds because nobody ever restarts the browser.
-  This requires access the current operator does not have.
+- The recurring fix is Chrome's `RelaunchNotificationPeriod` policy, which
+  forces a browser relaunch after a set window. Chrome self-updates fine;
+  machines sit on vulnerable builds because nobody ever restarts the
+  browser. Fleet-wide this needs GPO or Chrome Browser Cloud Management,
+  which the current operator does not have — but **per-machine it is just
+  a registry key under `HKLM\SOFTWARE\Policies\Google\Chrome`, and
+  Backstage can write it.** `Set-ChromeRelaunchPolicy.ps1` does this. Worth
+  pushing for the fleet-wide version, since doing it per-machine does not
+  cover new or rebuilt endpoints.
