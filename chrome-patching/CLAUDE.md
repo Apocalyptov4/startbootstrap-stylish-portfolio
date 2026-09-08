@@ -14,6 +14,19 @@ office against any endpoint, not just the machines from that incident.
 considered vulnerable. This value will change over time — it is defined once
 as `$MinVersion` in `scripts/Update-Chrome.ps1`.
 
+It will now go stale **fast**. As of Chrome 153 (8 September 2026) Google
+moved to a **two-week major release cadence**, twice the old rate. Two
+consequences:
+
+- A machine can legitimately be a whole major version ahead of the target.
+  Seen live: an endpoint with `153.0.8010.37` staged while `$MinVersion`
+  was still `152.0.7977.82`. Comparisons must stay `-ge`, never `-eq` or a
+  string match on the major.
+- Whoever owns this tooling needs a habit of revisiting `$MinVersion`, or
+  it silently degrades into passing machines that are months behind.
+  Check <https://chromereleases.googleblog.com/> against the current
+  security advisory rather than assuming.
+
 ## Environment constraints — these are load-bearing
 
 These are the realities the tooling is written around. Do not "simplify" the
