@@ -1,0 +1,5 @@
+# Real machine names stay off a public repo.
+computers.txt
+
+# Audit output.
+*.csv
