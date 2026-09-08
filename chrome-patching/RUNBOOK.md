@@ -33,6 +33,14 @@ if(@(Get-Process chrome -EA 0).Count){"NOTE: Chrome is open - user must restart 
 Takes about two minutes. **Do not click inside the window while it runs** —
 that freezes it. If the title bar starts with `Select`, press `Esc`.
 
+**Paste the whole thing in one go.** Copying it a line at a time does not
+work: the `if` at the bottom spans several lines, and PowerShell throws
+away a half-finished block. The symptom is that it checks the version,
+prints nothing further, and hands you the prompt back.
+
+Some lines print nothing at all. That is normal — only the lines starting
+`FOUND:`, `COMPLIANT:`, `SUCCESS`, `FAILED` and `NOTE:` produce output.
+
 ## 3. Read the last line
 
 | Output | What it means | What you do |
@@ -40,7 +48,7 @@ that freezes it. If the title bar starts with `Select`, press `Esc`.
 | `COMPLIANT: 152.x` | Already patched | Nothing. Close the ticket. |
 | `SUCCESS -> 152.x` | Updated | See step 4. |
 | `FAILED -> ...` | Did not update | Escalate — paste the full output. |
-| `NO CHROME FOUND` | Not installed | Confirm it should be, then escalate. |
+| No `FOUND:` line at all | Chrome was not installed | The block installs it. Confirm it should be there. |
 | `FOUND: ... \Users\...` | Per-user install | See step 5. |
 
 ## 4. If you see `NOTE: Chrome is open`
