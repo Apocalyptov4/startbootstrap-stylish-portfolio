@@ -29,7 +29,8 @@ $e="$env:TEMP\cs.exe"; curl.exe -L -s -o $e 'https://dl.google.com/chrome/instal
 if((Test-Path $e) -and (Get-Item $e).Length -gt 1MB){$p=Start-Process $e -ArgumentList '/silent','/install','--system-level','--do-not-launch-chrome' -Wait -PassThru; "installer exit: $($p.ExitCode)"; Start-Sleep 20}else{"DOWNLOAD FAILED - no outbound internet as SYSTEM"}}
 $a=&$best; $s=&$stg
 if($a -and [version]$a -ge $min){"SUCCESS -> $a"}elseif($s -and [version]$s -ge $min){"STAGED -> $s  (patched, waiting on a Chrome restart)"}else{"FAILED -> running=$a staged=$s"}
-if(@(Get-Process chrome -EA 0).Count){$k='HKLM:\SOFTWARE\Policies\Google\Chrome'; New-Item $k -Force|Out-Null; Set-ItemProperty $k -Name RelaunchNotification -Value 2 -Type DWord; Set-ItemProperty $k -Name RelaunchNotificationPeriod -Value 14400000 -Type DWord; "Chrome open -> relaunch policy set, it will restart itself within 4h and restore tabs"}
+$k='HKLM:\SOFTWARE\Policies\Google\Chrome'; New-Item $k -Force|Out-Null; Set-ItemProperty $k -Name RelaunchNotification -Value 2 -Type DWord; Set-ItemProperty $k -Name RelaunchNotificationPeriod -Value 14400000 -Type DWord
+if(@(Get-Process chrome -EA 0).Count){"Chrome OPEN -> relaunch policy set; it will restart itself within 4h and restore tabs"}else{"Chrome CLOSED -> staged update activates on next launch; relaunch policy set for future updates"}
 ```
 
 Takes about two minutes. **Do not click inside the window while it runs** —
@@ -58,11 +59,17 @@ browser.
 | No `FOUND:` line at all | Chrome was not installed | The block installs it. Confirm it should be there. |
 | `FOUND: ... \Users\...` | Per-user install | See step 5. |
 
-## 4. If you see `Chrome open -> relaunch policy set`
+## 4. The last line tells you about the restart
 
-Nothing to do. The patch is on disk, and Chrome will warn the user,
-escalate, then relaunch itself within four hours and put all their tabs
-back. The machine finishes without anyone being chased.
+`Chrome CLOSED` — nothing to do. The staged patch activates the next time
+anyone opens Chrome.
+
+`Chrome OPEN` — also nothing to do. Chrome will warn the user, escalate,
+then relaunch itself within four hours and put all their tabs back. The
+machine finishes without anyone being chased.
+
+Either way the relaunch policy is now set on that machine, so future
+updates finish on their own too.
 
 Why it matters: until Chrome restarts, the running browser still has the
 old, vulnerable version in memory even though the files are patched. The

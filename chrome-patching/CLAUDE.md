@@ -159,11 +159,28 @@ failure mode 3.
 
 ## Open items
 
-- Most of the machines from the original batch are not yet verified. Keep
-  the working list somewhere internal, not in this repo.
-- Unknown whether the corrupt-installer-cache condition is fleet-wide or
-  specific to the one machine where we found it. If it is fleet-wide, no
-  NinjaOne policy change will fix it and that needs escalating.
+- **The "failed patch" alerts may largely be a measurement artifact.** Two
+  endpoints checked with the corrected block (`152.0.7977.65` and
+  `152.0.7977.77`, both with Chrome open, both with ample disk) reported
+  `FAILED` under the old check and turned out to have `153.0.8010.37`
+  staged and waiting. Installer exit code `0` in both cases. Nothing was
+  wrong with either machine. Chrome self-updates correctly; what fails is
+  reading the launcher's version while Chrome holds the old build open.
+
+  If NinjaOne verifies patches the same way — and a generic
+  `Failed software patch` on healthy machines suggests it might — then the
+  original incident was substantially a false alarm, and no amount of
+  retrying or policy tuning in the RMM would ever have cleared it. Worth
+  confirming and escalating, because it changes what to ask for.
+
+- Still unverified with the corrected block: the endpoints reported at
+  `151.0.7922.174`. Those are two majors behind and may be a genuine
+  finding rather than the same artifact — recheck before concluding
+  anything. Keep the working machine list somewhere internal, not here.
+- The corrupt-installer-cache condition (MSI 2725) was real on the one
+  machine where it was diagnosed, but it is no longer the leading
+  explanation for the fleet. Do not assume it is widespread without
+  evidence; the EXE installer path sidesteps it anyway.
 - The recurring fix is Chrome's `RelaunchNotificationPeriod` policy, which
   forces a browser relaunch after a set window. Chrome self-updates fine;
   machines sit on vulnerable builds because nobody ever restarts the
