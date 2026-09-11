@@ -1,0 +1,13 @@
+# Machine list for Get-ChromeFleetStatus.ps1
+#
+# Copy this file to computers.txt in the same folder and put your real
+# machine names in it, one per line.
+#
+# computers.txt is git-ignored on purpose. Real machine names must not
+# end up in this repository -- it is public.
+#
+# Blank lines and lines starting with # are ignored.
+
+PC-01
+PC-02
+PC-03
