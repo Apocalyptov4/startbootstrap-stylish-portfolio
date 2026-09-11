@@ -45,9 +45,12 @@ scripts in ways that break them:
   shares are reached as the *machine* account (`DOMAIN\COMPUTER$`), so a
   share must grant read to `Domain Computers`. Do not write logs to a
   desktop path; use `C:\ProgramData\`.
-- **Hostnames are inconsistent.** Some are bare hardware serials, others
-  carry a site prefix. If a name does not resolve, retry with the site
-  prefix before concluding the machine is offline.
+- **Hostnames are inconsistent, and more than one convention is in use at
+  once.** Bare hardware serials sit alongside at least two different site
+  prefixes, so there is no single pattern to normalise to. If a name does
+  not resolve, retry the other forms before concluding the machine is
+  offline. `Get-ChromeFleetStatus.ps1` takes `-SitePrefix` as a list for
+  exactly this reason.
 - **Some machines in the list are domain controllers.** Never force-close
   applications or reboot one as part of a bulk operation. Check the role
   before running anything against a server.
@@ -173,10 +176,11 @@ failure mode 3.
   retrying or policy tuning in the RMM would ever have cleared it. Worth
   confirming and escalating, because it changes what to ask for.
 
-- Still unverified with the corrected block: the endpoints reported at
-  `151.0.7922.174`. Those are two majors behind and may be a genuine
-  finding rather than the same artifact — recheck before concluding
-  anything. Keep the working machine list somewhere internal, not here.
+- Anything measured with the old check is unproven in both directions — a
+  `FAILED` may be the artifact above, and the machines two majors behind
+  may still be a genuine finding. Recheck with the corrected block before
+  concluding anything either way. Keep the working machine list somewhere
+  internal, not here.
 - The corrupt-installer-cache condition (MSI 2725) was real on the one
   machine where it was diagnosed, but it is no longer the leading
   explanation for the fleet. Do not assume it is widespread without

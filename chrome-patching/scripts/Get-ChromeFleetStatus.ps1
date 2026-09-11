@@ -17,10 +17,10 @@
    .\Get-ChromeFleetStatus.ps1 -ComputerName PC-01,PC-02
        Checks just those machines
 
-   .\Get-ChromeFleetStatus.ps1 -SitePrefix 'SITE-'
-       If a bare name does not answer, retries it with the prefix
-       (and a prefixed name retried without it), because hostnames
-       in this fleet are inconsistent.
+   .\Get-ChromeFleetStatus.ps1 -SitePrefix 'SITE-','OTHER-'
+       If a bare name does not answer, retries it with each prefix
+       (and a prefixed name retried without it), because this fleet
+       uses more than one naming convention side by side.
 
  RUN IT AS
    A domain admin (or any account with admin rights on the targets),
@@ -44,7 +44,7 @@ param(
     [string[]]$ComputerName,
     [string]  $InputFile  = (Join-Path $PSScriptRoot '..\computers.txt'),
     [version] $MinVersion = '152.0.7977.82',
-    [string]  $SitePrefix = '',
+    [string[]]$SitePrefix = @(),
     [string]  $OutputCsv,
     [int]     $TimeoutMs  = 1500
 )
@@ -103,19 +103,21 @@ function Test-Smb {
     }
 }
 
-# Hostnames here are inconsistent: some carry a site prefix, some do not.
-# Try the name as given, then the other form, before calling it offline.
+# Hostnames here are inconsistent, and there is more than one convention in
+# play at once -- bare serials alongside two or more site prefixes. Try the
+# name as given first, then each alternative form, before calling it offline.
 function Resolve-Target {
-    param($Name, $Prefix, $Timeout)
+    param($Name, $Prefixes, $Timeout)
     $tries = @($Name)
-    if ($Prefix) {
-        if ($Name -like "$Prefix*") {
-            $tries += ($Name -replace "^$([regex]::Escape($Prefix))", '')
+    foreach ($p in $Prefixes) {
+        if (-not $p) { continue }
+        if ($Name -like "$p*") {
+            $tries += ($Name -replace "^$([regex]::Escape($p))", '')
         } else {
-            $tries += "$Prefix$Name"
+            $tries += "$p$Name"
         }
     }
-    foreach ($t in $tries) {
+    foreach ($t in ($tries | Select-Object -Unique)) {
         if ($t -and (Test-Smb -Computer $t -Timeout $Timeout)) { return $t }
     }
     return $null
@@ -188,7 +190,7 @@ foreach ($name in $ComputerName) {
         Detail         = ''
     }
 
-    $target = Resolve-Target -Name $name -Prefix $SitePrefix -Timeout $TimeoutMs
+    $target = Resolve-Target -Name $name -Prefixes $SitePrefix -Timeout $TimeoutMs
     if (-not $target) {
         $row.Detail = 'No answer on port 445 (offline, or wrong name)'
         Write-Host 'UNREACHABLE' -ForegroundColor DarkGray
@@ -292,7 +294,8 @@ if ($offline.Count) {
     Head 'NO ANSWER'
     foreach ($r in $offline) { Say $r.Computer 'DarkGray' }
     if (-not $SitePrefix) {
-        Say 'If these names should carry a site prefix, re-run with -SitePrefix.' 'DarkGray'
+        Say 'This fleet uses more than one naming convention. If these names' 'DarkGray'
+        Say "should carry a prefix, re-run with -SitePrefix 'A-','B-'." 'DarkGray'
     }
 }
 
