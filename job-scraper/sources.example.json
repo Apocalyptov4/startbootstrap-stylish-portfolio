@@ -1,0 +1,18 @@
+{
+  "boards": {
+    "remoteok": true,
+    "remotive": true,
+    "arbeitnow": { "max_pages": 3 },
+    "hackernews": true
+  },
+  "companies": {
+    "greenhouse": ["stripe", "airbnb", "figma", "discord", "cloudflare", "datadog"],
+    "lever": ["palantir", "spotify", "plaid"],
+    "ashby": [
+      "openai",
+      "ramp",
+      "linear",
+      { "slug": "notion", "name": "Notion" }
+    ]
+  }
+}

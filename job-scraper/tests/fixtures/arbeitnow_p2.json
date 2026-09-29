@@ -1,0 +1,19 @@
+{
+ "data": [
+  {
+   "slug": "js-2",
+   "company_name": "Wayne",
+   "title": "JavaScript Engineer",
+   "description": "",
+   "remote": true,
+   "url": "https://www.arbeitnow.com/jobs/js-2",
+   "tags": [],
+   "job_types": [],
+   "location": "Munich",
+   "created_at": 1759000000
+  }
+ ],
+ "links": {
+  "next": null
+ }
+}

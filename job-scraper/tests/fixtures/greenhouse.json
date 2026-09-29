@@ -1,0 +1,32 @@
+{
+ "jobs": [
+  {
+   "id": 101,
+   "title": "Senior Backend Engineer (Python)",
+   "absolute_url": "https://boards.greenhouse.io/acme/jobs/101",
+   "location": {
+    "name": "Remote - US"
+   },
+   "updated_at": "2026-09-27T10:00:00-04:00",
+   "first_published": "2026-09-25T10:00:00-04:00",
+   "company_name": "Acme",
+   "departments": [
+    {
+     "name": "Engineering"
+    }
+   ],
+   "content": "&lt;p&gt;We use &lt;strong&gt;Python&lt;/strong&gt; &amp;amp; Postgres.&lt;/p&gt;"
+  },
+  {
+   "id": 102,
+   "title": "Account Executive",
+   "absolute_url": "https://boards.greenhouse.io/acme/jobs/102",
+   "location": {
+    "name": "New York, NY"
+   },
+   "updated_at": "2026-06-01T10:00:00Z",
+   "departments": [],
+   "content": ""
+  }
+ ]
+}
