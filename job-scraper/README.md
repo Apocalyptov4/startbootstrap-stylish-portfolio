@@ -1,6 +1,37 @@
-# jobscraper
+# Job Radar
 
-This tool collects job openings from many sites into one list that you can filter, de-duplicate and export.
+Job Radar is an app that collects job openings from many sites into one list. You can search it, filter it, and track which jobs you've saved or applied to. It runs on your own computer and opens in your web browser.
+
+![Job Radar screenshot](docs/screenshot.png)
+
+## Start the app
+
+You need [Python 3](https://www.python.org/downloads/) installed. On Windows, tick "Add python.exe to PATH" during installation.
+
+* **Windows:** double-click `start.bat`.
+* **macOS:** double-click `start.command`. The first time, you may need to right-click it and choose **Open**.
+* **Linux or a terminal:** run `./start.command`, or `pip install -r requirements.txt` followed by `python -m jobscraper ui`.
+
+The app opens at <http://127.0.0.1:8765>. It keeps running while that window is open. Close the window, or press Ctrl+C, to stop it.
+
+To try the app with made-up sample jobs, start it with `python -m jobscraper ui --demo`. This works without an internet connection.
+
+## What you can do in the app
+
+* **Refresh** checks every site you follow and shows the combined list, with duplicate postings removed and the newest first.
+* **Search and filter** by keyword, location, remote only, posting date and site. You can also hide titles containing certain words, such as "senior".
+* **Save** (star), **Mark applied** (check mark) or **Hide** (crossed-out eye) any job. The tabs across the top list each group.
+* The **New** tab shows jobs that appeared since your last refresh.
+* **Click a job** to see its details, then use **Open job posting** to apply on the company's site.
+* **Settings** (gear icon) lets you turn job sites on or off and follow specific companies. Paste a careers link such as `jobs.lever.co/spotify`, `boards.greenhouse.io/stripe` or `jobs.ashbyhq.com/notion`.
+
+Your settings, the jobs found and your saved, applied and hidden marks are stored in the `~/.jobscraper` folder on your computer. Use `--data-dir` to store them somewhere else.
+
+Other options: `--port 8766` if port 8765 is already in use, and `--no-browser` to stop the app opening a browser tab.
+
+---
+
+## How it gets the jobs
 
 It uses each site's **public JSON API** and does not parse HTML pages. That makes it faster and more reliable than HTML scraping, and it stays within what these sites allow.
 
@@ -22,14 +53,9 @@ jobs.lever.co/<slug>                                               -> "lever"
 jobs.ashbyhq.com/<slug>                                            -> "ashby"
 ```
 
-## Setup
+## Command-line version
 
-```bash
-cd job-scraper
-pip install -r requirements.txt      # only dependency: requests
-```
-
-## Usage
+The same search also works in a terminal without the app. This is useful for scripts and scheduled digests.
 
 ```bash
 # All default boards (RemoteOK, Remotive, Arbeitnow, HN), newest first
@@ -87,6 +113,17 @@ Example cron entry for a daily email digest:
 
 ```bash
 python -m unittest -v      # offline; all HTTP responses come from tests/fixtures
+```
+
+## Project layout
+
+```
+jobscraper/
+  sources/     one module per kind of site; each yields Job objects
+  scraper.py   fetches all sources in parallel, then filters, de-duplicates and sorts
+  server.py    the local web app's server and JSON API (standard library only)
+  web/         the app's page: index.html, style.css, app.js (no build step)
+  cli.py       the command-line version
 ```
 
 ## Be a good citizen
