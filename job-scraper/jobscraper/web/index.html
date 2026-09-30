@@ -96,13 +96,19 @@
       <h3>Job sites</h3>
       <div id="boardList" class="board-list"></div>
 
+      <p class="static-note">
+        On the website, these settings are stored in the file <code>job-scraper/sources.json</code> in your
+        GitHub repository. Edit that file to add companies or switch sites on and off. The website picks up
+        the change at its next automatic update.
+      </p>
+
       <h3>Companies to follow</h3>
-      <p class="hint">
+      <p class="hint edit-only">
         Paste a company's careers page link (e.g. <code>jobs.lever.co/spotify</code>,
         <code>boards.greenhouse.io/stripe</code> or <code>jobs.ashbyhq.com/notion</code>),
         or pick the system and type its name as it appears in that link.
       </p>
-      <div class="add-company">
+      <div class="add-company edit-only">
         <select id="atsSelect" aria-label="Careers system">
           <option value="greenhouse">Greenhouse</option>
           <option value="lever">Lever</option>
@@ -116,7 +122,8 @@
 
       <footer class="modal-foot">
         <button class="btn ghost" value="cancel">Cancel</button>
-        <button class="btn primary" value="save" id="saveSettingsBtn">Save &amp; refresh</button>
+        <button class="btn primary edit-only" value="save" id="saveSettingsBtn">Save &amp; refresh</button>
+        <a class="btn primary" id="editOnGithub" target="_blank" rel="noopener" hidden>Edit on GitHub</a>
       </footer>
     </form>
   </dialog>

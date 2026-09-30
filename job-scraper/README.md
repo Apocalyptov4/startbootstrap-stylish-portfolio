@@ -4,7 +4,43 @@ Job Radar is an app that collects job openings from many sites into one list. Yo
 
 ![Job Radar screenshot](docs/screenshot.png)
 
-## Start the app
+There are three ways to use it:
+
+| | Best for | Needs Python? |
+|---|---|---|
+| **[Program](#the-program-windows-mac-linux)** | Your own computer, and changing settings from inside the app | No |
+| **[Website](#the-website)** | Checking jobs from any device, including your phone | No |
+| **[From the source code](#start-the-app-from-the-source-code)** | Developers | Yes |
+
+## The program (Windows, Mac, Linux)
+
+Download it from the **[Job Radar release page](https://github.com/Apocalyptov4/startbootstrap-stylish-portfolio/releases/tag/job-radar)**. GitHub builds a new version automatically whenever the code changes.
+
+* **Windows:** unzip `JobRadar-Windows.zip`, then double-click `JobRadar.exe`. If you see "Windows protected your PC", click **More info** and then **Run anyway**.
+* **Mac (M1 or newer):** unzip `JobRadar-macOS.zip`, then double-click `JobRadar`. If macOS says it can't verify the developer, go to **System Settings → Privacy & Security**, click **Open Anyway**, and open it again.
+
+A small window opens and Job Radar appears in your browser. Keep the window open while you use the app, and close it to quit. If you double-click the program while it's already running, it opens the existing copy.
+
+These warnings appear because the program isn't signed with a paid Microsoft or Apple developer certificate. The build steps are in `.github/workflows/job-radar-program.yml` and `packaging/`.
+
+## The website
+
+GitHub rebuilds the website every 6 hours with the latest jobs and publishes it with GitHub Pages at <https://apocalyptov4.github.io/startbootstrap-stylish-portfolio/>.
+
+* The job sites and companies it covers are set in [`sources.json`](sources.json). Edit that file on GitHub to change them. The **Edit on GitHub** button in the website's Settings takes you there.
+* Saved, applied and hidden marks are kept in the browser you set them in. Your phone and your laptop keep separate lists.
+* **New** shows jobs that appeared since your last visit.
+* Anyone with the link can see the job list. Your marks are never uploaded.
+
+One-time setup in the repository on GitHub:
+
+1. **Actions** tab → click **"I understand my workflows, go ahead and enable them"**. This step is only needed because this repository is a fork.
+2. **Settings → Pages → Build and deployment → Source:** choose **GitHub Actions**.
+3. Get the code onto the `master` branch. GitHub only publishes websites from the default branch.
+
+To build the website on your own computer: `python -m jobscraper.site -c sources.json -o _site`, then open `_site/index.html` through any web server.
+
+## Start the app from the source code
 
 You need [Python 3](https://www.python.org/downloads/) installed. On Windows, tick "Add python.exe to PATH" during installation.
 
@@ -124,6 +160,9 @@ jobscraper/
   server.py    the local web app's server and JSON API (standard library only)
   web/         the app's page: index.html, style.css, app.js (no build step)
   cli.py       the command-line version
+  site.py      builds the static website version
+packaging/     how the one-file program is built (PyInstaller)
+sources.json   job sites and companies the website covers
 ```
 
 ## Be a good citizen

@@ -1,0 +1,56 @@
+# Rebuilds the Job Radar website every 6 hours and publishes it with GitHub Pages.
+# Which job sites and companies it covers is set in job-scraper/sources.json.
+name: Job Radar website
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"   # every 6 hours (Remotive asks for at most 4 requests a day)
+  push:
+    branches: [master, claude/job-openings-scraper-yttljs]
+    paths: ["job-scraper/**", ".github/workflows/job-radar-website.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: job-radar-website
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Fetch jobs and build the site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        working-directory: job-scraper
+        run: pip install -r requirements.txt
+
+      - name: Fetch jobs
+        working-directory: job-scraper
+        run: python -m jobscraper.site -c sources.json -o ../_site
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Publish to GitHub Pages
+    # Pages only accepts the default branch; other branches just check the build works.
+    if: github.ref == 'refs/heads/master'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

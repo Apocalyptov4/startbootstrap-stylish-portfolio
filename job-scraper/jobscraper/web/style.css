@@ -219,6 +219,12 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
 
 .only-mobile { display: none; }
 
+/* website version: settings are read-only */
+.static-note { display: none; margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--accent-soft); font-size: 13px; }
+.static .static-note { display: block; }
+.static .edit-only, .static .company-list button { display: none; }
+.board:has(input:disabled) { cursor: default; }
+
 /* ---------- responsive ---------- */
 @media (max-width: 1150px) {
   .layout { grid-template-columns: 230px minmax(0, 1fr); }

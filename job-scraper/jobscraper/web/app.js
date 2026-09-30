@@ -15,6 +15,9 @@ const TABS = [
   ["all", "All"], ["new", "New"], ["saved", "Saved"], ["applied", "Applied"], ["hidden", "Hidden"],
 ];
 const PAGE = 100;
+// The website build (jobscraper/site.py) sets this: jobs come from data.json and
+// saved/applied/hidden marks live in this browser instead of on a server.
+const STATIC = !!window.JOB_RADAR_STATIC;
 const ICONS = {
   star: '<svg viewBox="0 0 24 24"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg>',
   check: '<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>',
@@ -52,9 +55,31 @@ async function api(path, body, method = "POST") {
 }
 
 async function load() {
+  if (STATIC) {
+    state.data = await loadStatic();
+    render();
+    return;
+  }
   state.data = await api("/api/state");
   render();
   if (!state.data.fetched_at) refresh();
+}
+
+async function loadStatic() {
+  const res = await fetch("data.json", { cache: "no-cache" });
+  if (!res.ok) throw new Error(`Couldn't load the job list (${res.status})`);
+  const d = await res.json();
+  // "New" = not in the list this browser saw last time the data changed.
+  const keys = d.jobs.map((j) => j.key);
+  const seen = store.get("seen", null);
+  let newKeys = [];
+  if (seen && seen.fetched_at === d.fetched_at) newKeys = seen.newKeys;
+  else if (seen) { const old = new Set(seen.keys); newKeys = keys.filter((k) => !old.has(k)); }
+  store.set("seen", { fetched_at: d.fetched_at, keys, newKeys });
+  const isNew = new Set(newKeys);
+  const marks = store.get("marks", {});
+  for (const j of d.jobs) { j.is_new = isNew.has(j.key); j.status = marks[j.key] || null; }
+  return d;
 }
 
 async function refresh() {
@@ -63,10 +88,10 @@ async function refresh() {
   btn.disabled = true;
   btn.classList.add("spinning");
   btn.querySelector("span").textContent = "Refreshing…";
-  $("status").textContent = "Checking all sites for new jobs. This can take up to a minute…";
+  $("status").textContent = STATIC ? "Loading the latest list…" : "Checking all sites for new jobs. This can take up to a minute…";
   if (!state.data?.jobs?.length) showEmpty("Looking for jobs…", "Checking every site you follow. This can take up to a minute.");
   try {
-    state.data = await api("/api/refresh", {});
+    state.data = STATIC ? await loadStatic() : await api("/api/refresh", {});
   } catch (e) {
     showBanner(`<b>Refresh failed:</b> ${esc(e.message)}`, true);
   } finally {
@@ -81,6 +106,12 @@ async function setStatus(job, status) {
   const next = job.status === status ? null : status;
   job.status = next;
   render();
+  if (STATIC) {
+    const marks = store.get("marks", {});
+    if (next) marks[job.key] = next; else delete marks[job.key];
+    store.set("marks", marks);
+    return;
+  }
   try {
     await api("/api/status", { key: job.key, status: next });
   } catch (e) {
@@ -152,7 +183,7 @@ function renderStatus() {
   if (!d || $("refreshBtn").disabled) return;
   const n = d.sources.length;
   $("status").textContent = d.fetched_at
-    ? `Updated ${relTime(d.fetched_at)} · ${d.jobs.length.toLocaleString()} jobs from ${n} ${n === 1 ? "source" : "sources"}`
+    ? `Updated ${relTime(d.fetched_at)} · ${d.jobs.length.toLocaleString()} jobs from ${n} ${n === 1 ? "source" : "sources"}${STATIC ? " · updates automatically" : ""}`
     : "Not refreshed yet";
 }
 
@@ -166,7 +197,9 @@ function render() {
   const nSites = d.sources.length;
   const errs = Object.entries(d.errors || {});
   if (d.demo) {
-    showBanner("<b>Demo mode.</b> These are made-up sample jobs. Start the app without <code>--demo</code> to see real ones.");
+    showBanner(STATIC
+      ? "<b>Demo mode.</b> These are made-up sample jobs."
+      : "<b>Demo mode.</b> These are made-up sample jobs. Start the app without <code>--demo</code> to see real ones.");
   } else if (errs.length) {
     const summary = errs.length === nSites
       ? "None of the sites could be reached."
@@ -329,6 +362,13 @@ function parseCompanyInput(raw) {
 
 function openSettings() {
   state.draftConfig = structuredClone(state.data.config);
+  if (STATIC) {
+    // The website can't change its own settings; they live in sources.json in the repository.
+    const repo = state.data.repo;
+    $("editOnGithub").href = repo ? `https://github.com/${repo}/edit/master/job-scraper/sources.json` : "#";
+    $("editOnGithub").hidden = !repo;
+    document.querySelector(".modal-foot [value=cancel]").textContent = "Close";
+  }
   $("settingsError").hidden = true;
   $("slugInput").value = "";
   renderSettings();
@@ -338,7 +378,7 @@ function openSettings() {
 function renderSettings() {
   const cfg = state.draftConfig;
   $("boardList").innerHTML = Object.entries(BOARDS).map(([id, desc]) =>
-    `<label class="board"><input type="checkbox" data-board="${id}" ${cfg.boards[id] ? "checked" : ""}>
+    `<label class="board"><input type="checkbox" data-board="${id}" ${cfg.boards[id] ? "checked" : ""} ${STATIC ? "disabled" : ""}>
       <span><b>${SOURCE_NAMES[id]}</b><small>${esc(desc)}</small></span></label>`).join("");
   const items = [];
   for (const [ats, list] of Object.entries(cfg.companies)) {
@@ -466,5 +506,8 @@ $("settingsForm").addEventListener("submit", (e) => {
 // keep the "Updated … ago" text current
 setInterval(renderStatus, 60_000);
 
+if (STATIC) document.body.classList.add("static");
 bindFilters();
-load().catch((e) => showEmpty("Couldn't reach the app", `${e.message}. Is it still running in your terminal?`));
+load().catch((e) => STATIC
+  ? showEmpty("Couldn't load the job list", `${e.message}. Try reloading the page.`)
+  : showEmpty("Couldn't reach the app", `${e.message}. Is it still running in your terminal?`));

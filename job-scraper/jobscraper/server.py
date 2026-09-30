@@ -251,14 +251,23 @@ def main(argv=None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stderr)
     logging.getLogger("urllib3").setLevel(logging.ERROR)
 
+    url = f"http://{'127.0.0.1' if args.host in ('0.0.0.0', '') else args.host}:{args.port}/"
     store = Store(Path(args.data_dir), demo_mode=args.demo)
     try:
         server = make_server(store, args.host, args.port)
     except OSError as e:
+        if _already_running(url):
+            # Double-clicked a second time: just bring up the copy that's already running.
+            print(f"Job Radar is already running at {url}", file=sys.stderr)
+            if not args.no_browser:
+                webbrowser.open(url)
+            return 0
         print(f"Could not start on port {args.port} ({e}). Try --port 8766.", file=sys.stderr)
         return 1
-    url = f"http://{'127.0.0.1' if args.host in ('0.0.0.0', '') else args.host}:{args.port}/"
-    print(f"Job Radar is running at {url}  (press Ctrl+C to stop)", file=sys.stderr)
+    if getattr(sys, "frozen", False):
+        print(f"Job Radar is running at {url}\nKeep this window open while you use it. Close it to quit.", file=sys.stderr)
+    else:
+        print(f"Job Radar is running at {url}  (press Ctrl+C to stop)", file=sys.stderr)
     if not args.no_browser:
         threading.Timer(0.5, webbrowser.open, [url]).start()
     try:
@@ -268,3 +277,14 @@ def main(argv=None) -> int:
     finally:
         server.server_close()
     return 0
+
+
+def _already_running(url: str) -> bool:
+    import urllib.request
+
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(url + "api/state", timeout=2) as r:
+            return "config" in json.loads(r.read())
+    except Exception:
+        return False
