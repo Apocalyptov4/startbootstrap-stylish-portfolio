@@ -85,13 +85,13 @@ class Store:
 
     def _load(self, name, default):
         try:
-            return json.loads((self.dir / name).read_text())
+            return json.loads((self.dir / name).read_text(encoding="utf-8"))
         except (FileNotFoundError, json.JSONDecodeError):
             return copy.deepcopy(default)
 
     def _save(self, name, data):
         tmp = self.dir / f"{name}.tmp"
-        tmp.write_text(json.dumps(data, ensure_ascii=False))
+        tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
         tmp.replace(self.dir / name)
 
     # --- API operations -------------------------------------------------

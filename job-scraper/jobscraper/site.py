@@ -57,7 +57,7 @@ def build(config: dict, out_dir: Path, session=None, repo: str | None = None, us
     assert '<script src="app.js"></script>' in page
     (out_dir / "index.html").write_text(page.replace('<script src="app.js"></script>', STATIC_FLAG), encoding="utf-8")
     (out_dir / "data.json").write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    (out_dir / ".nojekyll").write_text("")
+    (out_dir / ".nojekyll").write_text("", encoding="utf-8")
     return payload
 
 
@@ -71,7 +71,7 @@ def main(argv=None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stderr)
     logging.getLogger("urllib3").setLevel(logging.ERROR)
 
-    payload = build(json.loads(Path(args.config).read_text()), Path(args.out), repo=args.repo, use_demo=args.demo)
+    payload = build(json.loads(Path(args.config).read_text(encoding="utf-8")), Path(args.out), repo=args.repo, use_demo=args.demo)
     print(f"{len(payload['jobs'])} jobs from {len(payload['sources'])} sources written to {args.out}/", file=sys.stderr)
     for label, err in payload["errors"].items():
         print(f"  ! {label}: {err}", file=sys.stderr)

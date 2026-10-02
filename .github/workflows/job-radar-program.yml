@@ -44,7 +44,8 @@ jobs:
         run: pip install -r requirements.txt pyinstaller
 
       - name: Run tests
-        run: python -m unittest -v
+        # Fail on any file opened without an explicit encoding (Windows doesn't default to UTF-8).
+        run: python -X warn_default_encoding -W error::EncodingWarning -m unittest -v
 
       - name: Build program
         run: pyinstaller --noconfirm packaging/job-radar.spec

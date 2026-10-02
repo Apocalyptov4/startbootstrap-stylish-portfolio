@@ -46,7 +46,7 @@ class FakeSession:
             raise ConnectionError(f"boom: {url}")
         for prefix, name in ROUTES:
             if url.startswith(prefix):
-                return json.loads((FIXTURES / name).read_text())
+                return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
         raise AssertionError(f"unexpected URL {url}")
 
 
@@ -228,12 +228,12 @@ class CliTests(unittest.TestCase):
     def test_end_to_end_with_config(self):
         with tempfile.TemporaryDirectory() as d:
             cfg = Path(d) / "cfg.json"
-            cfg.write_text(json.dumps(RunTests.config))
+            cfg.write_text(json.dumps(RunTests.config), encoding="utf-8")
             out_file = Path(d) / "jobs.csv"
             with mock.patch("jobscraper.scraper.Session", FakeSession), redirect_stderr(io.StringIO()) as err:
                 code = cli.main(["-c", str(cfg), "-k", "python", "-k", "rust", "--remote", "-f", "csv", "-o", str(out_file)])
             self.assertEqual(code, 0)
-            rows = out_file.read_text().splitlines()
+            rows = out_file.read_text(encoding="utf-8").splitlines()
             self.assertEqual(rows[0].split(",")[:3], ["posted_at", "title", "company"])
             titles = "\n".join(rows[1:])
             self.assertIn("Senior Rust Engineer", titles)

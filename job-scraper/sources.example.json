@@ -7,7 +7,7 @@
   },
   "companies": {
     "greenhouse": ["stripe", "airbnb", "figma", "discord", "cloudflare", "datadog"],
-    "lever": ["palantir", "spotify", "plaid"],
+    "lever": ["palantir", "spotify"],
     "ashby": [
       "openai",
       "ramp",

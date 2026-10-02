@@ -17,7 +17,7 @@ class SeenStore:
         self.path = Path(path)
         self.seen: dict[str, str] = {}
         if self.path.exists():
-            self.seen = json.loads(self.path.read_text() or "{}")
+            self.seen = json.loads(self.path.read_text(encoding="utf-8") or "{}")
 
     @staticmethod
     def key(job: Job) -> str:
@@ -43,5 +43,5 @@ class SeenStore:
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(self.seen, indent=0, sort_keys=True))
+        tmp.write_text(json.dumps(self.seen, indent=0, sort_keys=True), encoding="utf-8")
         tmp.replace(self.path)

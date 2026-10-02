@@ -51,7 +51,7 @@ def main(argv=None) -> int:
     )
     logging.getLogger("urllib3").setLevel(logging.ERROR)  # retries are summarised per source instead
 
-    config = json.loads(Path(args.config).read_text()) if args.config else DEFAULT_CONFIG
+    config = json.loads(Path(args.config).read_text(encoding="utf-8")) if args.config else DEFAULT_CONFIG
     only = {s.strip() for s in args.sources.split(",")} if args.sources else None
     if only and (unknown := only - set(ALL_SOURCE_NAMES)):
         print(f"unknown source(s): {', '.join(sorted(unknown))}", file=sys.stderr)
