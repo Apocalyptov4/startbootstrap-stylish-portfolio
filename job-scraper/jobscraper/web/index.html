@@ -30,27 +30,33 @@
 
   <div class="layout">
     <aside class="sidebar" id="sidebar">
-      <label class="field">
-        <span>Search</span>
-        <input type="search" id="q" placeholder="e.g. python backend" autocomplete="off">
-        <small>All words must match. Press <kbd>/</kbd> to jump here.</small>
-      </label>
       <div class="field">
-        <span>Near</span>
+        <span>ZIP code or city</span>
         <div class="near-row">
-          <input type="search" id="loc" placeholder="ZIP code or city" autocomplete="off" aria-label="Near ZIP code or city" aria-describedby="nearHint">
+          <input type="search" id="loc" placeholder="e.g. 08088" autocomplete="off" inputmode="search" aria-label="ZIP code or city" aria-describedby="nearHint">
           <select id="radius" aria-label="Distance">
             <option value="5">5 mi</option>
             <option value="10">10 mi</option>
+            <option value="15">15 mi</option>
             <option value="25">25 mi</option>
             <option value="50">50 mi</option>
+            <option value="75">75 mi</option>
             <option value="100">100 mi</option>
           </select>
         </div>
-        <small id="nearHint">e.g. 60614 or Austin, TX</small>
-        <label class="check"><input type="checkbox" id="withRemote"> Include remote jobs</label>
-        <button type="button" class="btn small" id="moreNearBtn" hidden></button>
+        <small id="nearHint">e.g. 08088 or Philadelphia, PA</small>
       </div>
+      <label class="field">
+        <span>Kind of job</span>
+        <select id="category"><option value="">All kinds of jobs</option></select>
+      </label>
+      <button type="button" class="btn primary search-btn" id="searchBtn" hidden></button>
+      <label class="check"><input type="checkbox" id="withRemote"> Include remote jobs</label>
+      <label class="field">
+        <span>Keywords</span>
+        <input type="search" id="q" placeholder="e.g. forklift, night shift" autocomplete="off">
+        <small>All words must match. Press <kbd>/</kbd> to jump here.</small>
+      </label>
       <label class="field">
         <span>Hide titles containing</span>
         <input type="search" id="exclude" placeholder="e.g. senior, staff" autocomplete="off">
@@ -120,6 +126,7 @@
           <option value="50">50 mi</option>
           <option value="100">100 mi</option>
         </select>
+        <select id="areaCategory" aria-label="Kind of job"><option value="">All kinds of jobs</option></select>
         <input id="areaWhat" placeholder="Keywords (optional)" autocomplete="off" aria-label="Job keywords, optional">
         <button type="button" class="btn" id="addAreaBtn">Add</button>
       </div>

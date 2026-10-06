@@ -20,6 +20,9 @@ from .base import Source
 API = "https://api.adzuna.com/v1/api/jobs/{country}/search/{page}"
 PAGE_SIZE = 50
 KM_PER_MILE = 1.609344
+# Adzuna's docs say "distance" is in kilometres, but live US results for 08088 with distance=80
+# reached ~75 miles away, so the US (and UK) site reads it as miles.
+MILES_COUNTRIES = {"us", "gb"}
 STATE_ABBREV = {name.title(): abbr for name, abbr in STATES.items()}
 
 
@@ -52,14 +55,15 @@ class Adzuna(Source):
     name = "adzuna"
 
     def __init__(self, where: str, miles: int = 25, what: str = "", app_id: str = "", app_key: str = "",
-                 country: str = "us", max_pages: int = 10, max_days_old: int = 30):
-        self.where, self.miles, self.what = where, miles, what
+                 country: str = "us", max_pages: int = 10, max_days_old: int = 30, category: str = ""):
+        self.where, self.miles, self.what, self.category = where, miles, what, category
         self.app_id, self.app_key = app_id, app_key
         self.country, self.max_pages, self.max_days_old = country, max_pages, max_days_old
 
     @property
     def label(self) -> str:
-        return f"adzuna:{self.where}" + (f" ({self.what})" if self.what else "")
+        detail = ", ".join(x for x in (self.category.replace("-jobs", "").replace("-", " "), self.what) if x)
+        return f"adzuna:{self.where}" + (f" ({detail})" if detail else "")
 
     def fetch(self, session):
         if not (self.app_id and self.app_key):
@@ -71,12 +75,14 @@ class Adzuna(Source):
                 "app_key": self.app_key,
                 "results_per_page": PAGE_SIZE,
                 "where": self.where,
-                "distance": round(self.miles * KM_PER_MILE),
+                "distance": self.miles if self.country in MILES_COUNTRIES else round(self.miles * KM_PER_MILE),
                 "sort_by": "date",
                 "max_days_old": self.max_days_old,
             }
             if self.what:
                 params["what"] = self.what
+            if self.category:
+                params["category"] = self.category  # e.g. "healthcare-nursing-jobs"
             try:
                 resp = session.get(API.format(country=self.country, page=page), params=params)
             except requests.RequestException as e:
@@ -126,6 +132,7 @@ class Adzuna(Source):
             lat=j.get("latitude"),
             lon=j.get("longitude"),
             area=self.where,
+            category=(j.get("category") or {}).get("tag") or "",
         )
 
 

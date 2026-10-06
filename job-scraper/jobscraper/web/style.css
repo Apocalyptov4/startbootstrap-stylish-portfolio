@@ -113,7 +113,10 @@ input[type="search"], input:not([type]), select {
 input::placeholder { color: var(--muted); opacity: .8; }
 
 .near-row { display: flex; gap: 6px; }
-.near-row select { width: 84px; flex: none; }
+.near-row select { width: 88px; flex: none; }
+.search-btn { justify-content: center; white-space: normal; text-align: center; line-height: 1.3; }
+.search-btn:disabled { cursor: progress; }
+#nearHint .note { display: block; color: var(--muted); margin-top: 2px; }
 .check { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; margin-top: 2px; }
 #nearHint.ok { color: var(--new); }
 #nearHint.warn { color: var(--danger); }
@@ -121,6 +124,7 @@ input::placeholder { color: var(--muted); opacity: .8; }
 .add-area, .key-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .add-area input, .key-row input { flex: 1 1 140px; min-width: 0; }
 .add-area select { width: 90px; flex: none; }
+.add-area #areaCategory { width: auto; flex: 1 1 150px; }
 .hint a { color: var(--accent); }
 .key-status-ok { color: var(--new); font-weight: 600; }
 

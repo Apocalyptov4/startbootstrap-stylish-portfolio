@@ -15,7 +15,7 @@ for r in rows:
     lat, lon = round(float(r["lat"]), 3), round(float(r["long"]), 3)
     if lat == 0 and lon == 0:
         continue
-    zips[r["zip_code"]] = [lat, lon]
+    zips[r["zip_code"]] = [lat, lon, f'{r["city"].title()}, {r["state"]}']
     st = r["state"]
     for city in [r["city"], *r.get("acceptable_cities", [])]:
         groups[(city.lower(), st)].append((lat, lon, r["zip_code_type"] == "STANDARD"))

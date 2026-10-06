@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
 from . import geo
+from .categories import add_categories
 from .http import Session
 from .models import Job
 from .sources import Source
@@ -148,5 +149,6 @@ def run(sources: Iterable[Source], filters: Filters, session: Session | None = N
     now = datetime.now(timezone.utc)
     kept = [j for j in dedupe(raw) if filters.matches(j, now)]
     add_coordinates(kept)
+    add_categories(kept)
     kept.sort(key=_ts, reverse=True)
     return RunResult(jobs=kept, fetched=len(raw), errors=errors)

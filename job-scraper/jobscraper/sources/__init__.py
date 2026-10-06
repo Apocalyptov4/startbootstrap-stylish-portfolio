@@ -68,6 +68,7 @@ def build_sources(config: dict, only: set[str] | None = None) -> list[Source]:
                 app_key=az.get("app_key", ""),
                 country=az.get("country", "us"),
                 max_pages=int(az.get("max_pages") or 10),
+                category=area.get("category") or "",
             ))
 
     return sources

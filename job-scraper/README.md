@@ -27,6 +27,7 @@ These warnings appear because the program isn't signed with a paid Microsoft or 
 
 GitHub rebuilds the website every 6 hours with the latest jobs and publishes it with GitHub Pages at <https://apocalyptov4.github.io/startbootstrap-stylish-portfolio/>.
 
+* It collects jobs within 50 miles of 08088. You can change the ZIP, miles and kind of job instantly, but only within what it has collected. Searching any other ZIP live needs the program, because the website can't call Adzuna without publishing your key.
 * The search areas, job sites and companies it covers are set in [`sources.json`](sources.json). Edit that file on GitHub to change them. The **Edit on GitHub** button in the website's Settings takes you there.
 * Saved, applied and hidden marks are kept in the browser you set them in. Your phone and your laptop keep separate lists.
 * **New** shows jobs that appeared since your last visit.
@@ -58,7 +59,9 @@ To try the app with made-up sample jobs, start it with `python -m jobscraper ui 
 ## What you can do in the app
 
 * **Refresh** checks every site you follow and shows the combined list, with duplicate postings removed and the newest first.
-* **Near:** type a US ZIP code or city, such as `60614` or `Austin, TX`, and pick a distance (5–100 miles). Each job shows how far away it is, and **Nearest first** sorts by distance. Remote jobs are included unless you untick **Include remote jobs**. Places outside the US fall back to matching the location text.
+* **ZIP code or city + miles + kind of job:** the main search, at the top of the sidebar. It starts at your first search area (08088, 50 miles). Each job shows how far away it is, and **Nearest first** sorts by distance. Remote jobs are included unless you untick **Include remote jobs**. Places outside the US fall back to matching the location text.
+* **Search** (program only) asks Adzuna right away for the ZIP, miles and kind of job you picked. Pressing Enter in the ZIP box does the same. Results are added to what's already loaded, and the place is remembered as a search area so later refreshes keep it up to date. The first search area, your home, is always kept; when there are more than 10, the oldest other one is dropped.
+* **Kind of job** uses Adzuna's categories (Healthcare & Nursing, Retail, Logistics & Warehouse, and so on). Jobs from other sources are sorted into a kind by their title.
 * **Search and filter** by keyword, remote only, posting date and site. You can also hide titles containing certain words, such as "senior".
 * **Save** (star), **Mark applied** (check mark) or **Hide** (crossed-out eye) any job. The tabs across the top list each group.
 * The **New** tab shows jobs that appeared since your last refresh.

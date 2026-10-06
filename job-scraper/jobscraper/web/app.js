@@ -36,11 +36,13 @@ const store = {
 };
 
 const DEFAULT_FILTERS = {
-  q: "", loc: "", radius: "25", withRemote: true, exclude: "", remote: false, days: "", hiddenSources: [], tab: "all", sort: "newest",
+  q: "", loc: "", radius: "25", category: "", withRemote: true, exclude: "", remote: false, days: "", hiddenSources: [], tab: "all", sort: "newest",
 };
+const SAVED_FILTERS = store.get("filters", null);
 const state = {
   data: null,
-  filters: { ...DEFAULT_FILTERS, ...store.get("filters", {}) },
+  filters: { ...DEFAULT_FILTERS, ...(SAVED_FILTERS || {}) },
+  searching: false,
   selected: null,
   shown: PAGE,
   draftConfig: null,
@@ -121,7 +123,7 @@ function lookupPlace(text) {
   const zip = t.match(/^(\d{5})(?:-\d{4})?$/);
   if (zip) {
     const z = places.data.zips[zip[1]];
-    hit = z ? { lat: z[0], lon: z[1], label: zip[1] } : null;
+    hit = z ? { lat: z[0], lon: z[1], label: z[2] ? `${zip[1]} (${z[2]})` : zip[1] } : null;
   } else if (t.includes(",")) {
     const [city, rest] = [t.slice(0, t.indexOf(",")), t.slice(t.indexOf(",") + 1)];
     const st = stateCode(rest.split(",")[0]);
@@ -160,7 +162,7 @@ function resolveNear(text) {
 function areaCovers(place) {
   return (state.data?.config?.areas || []).some((a) => {
     const p = places.status === "ready" ? lookupPlace(a.where) : null;
-    return p && milesBetween(p, place) <= Math.max(5, a.miles / 2);
+    return p && milesBetween(p, place) <= a.miles;
   });
 }
 
@@ -174,13 +176,31 @@ async function api(path, body, method = "POST") {
   return data;
 }
 
+/** Start from the first search area ("within 50 mi of 08088"): on a first visit, and again whenever it changes. */
+function applyHomeArea() {
+  const home = state.data?.config?.areas?.[0];
+  if (!home) return;
+  const homeKey = `${home.where}|${home.miles}|${home.category || ""}`;
+  if (SAVED_FILTERS && store.get("homeArea", null) === homeKey) return;
+  store.set("homeArea", homeKey);
+  const f = state.filters;
+  f.loc = home.where;
+  const options = [...$("radius").options].map((o) => Number(o.value));
+  f.radius = String(options.find((m) => m >= home.miles) ?? options[options.length - 1]);
+  f.category = home.category || "";
+  $("loc").value = f.loc;
+  $("radius").value = f.radius;
+}
+
 async function load() {
   if (STATIC) {
     state.data = await loadStatic();
+    applyHomeArea();
     render();
     return;
   }
   state.data = await api("/api/state");
+  applyHomeArea();
   render();
   if (!state.data.fetched_at) refresh();
 }
@@ -245,8 +265,9 @@ function ageDays(job) {
   return job.posted_at ? (Date.now() - Date.parse(job.posted_at)) / 864e5 : null;
 }
 
-function matches(job, f, { ignoreSource = false } = {}) {
+function matches(job, f, { ignoreSource = false, ignoreCategory = false } = {}) {
   if (!ignoreSource && f.hiddenSources.includes(job.source)) return false;
+  if (!ignoreCategory && f.category && job.category !== f.category) return false;
   if (f.remote && !job.remote) return false;
   if (f.days) {
     const age = ageDays(job);
@@ -309,6 +330,24 @@ function relTime(iso) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
+function categoryName(tag) {
+  return state.data?.categories?.[tag] || titleCase(tag.replace(/-jobs$/, "").replace(/-/g, " "));
+}
+
+function renderCategories() {
+  const f = state.filters;
+  const counts = {};
+  for (const j of state.data.jobs) {
+    if (j.category && inTab(j, "all") && matches(j, f, { ignoreCategory: true })) counts[j.category] = (counts[j.category] || 0) + 1;
+  }
+  // The app can search Adzuna for a kind of job not loaded yet; the website can only filter what it has.
+  const tags = new Set([...Object.keys(counts), ...(STATIC ? [] : Object.keys(state.data.categories || {})), f.category].filter(Boolean));
+  const opts = [...tags].sort((a, b) => (counts[b] || 0) - (counts[a] || 0) || categoryName(a).localeCompare(categoryName(b)));
+  $("category").innerHTML = `<option value="">All kinds of jobs</option>` +
+    opts.map((t) => `<option value="${esc(t)}">${esc(categoryName(t))}${counts[t] ? ` (${counts[t].toLocaleString()})` : ""}</option>`).join("");
+  $("category").value = f.category;
+}
+
 function renderNear() {
   const f = state.filters;
   const { status, place } = state.near;
@@ -320,9 +359,22 @@ function renderNear() {
     found: place ? `Within ${f.radius} mi of ${place.label}` : "",
     unknown: "Not a US ZIP code or city I know, so matching the location text instead.",
   }[status];
-  const btn = $("moreNearBtn");
-  btn.hidden = STATIC || status !== "found" || areaCovers(place);
-  if (!btn.hidden) btn.textContent = `Get more jobs near ${place.label}`;
+  if (status === "found" && STATIC && !areaCovers(place)) {
+    const home = state.data.config.areas?.[0];
+    const note = document.createElement("span");
+    note.className = "note";
+    note.textContent = home
+      ? `This website collects jobs within ${home.miles} mi of ${home.where}, so there may be few jobs here. The Job Radar program can search any ZIP code.`
+      : "The Job Radar program can search any ZIP code.";
+    hint.append(note);
+  }
+  const btn = $("searchBtn");
+  btn.hidden = STATIC || status !== "found";
+  if (!btn.hidden) {
+    btn.disabled = state.searching;
+    const kind = f.category ? categoryName(f.category).toLowerCase() + " jobs" : "all jobs";
+    btn.textContent = state.searching ? "Searching…" : `Search ${kind} within ${f.radius} mi of ${place.label}`;
+  }
 }
 
 function renderStatus() {
@@ -369,6 +421,8 @@ function render() {
     const n = base.filter((j) => inTab(j, id)).length;
     return `<button class="tab" role="tab" data-tab="${id}" aria-selected="${f.tab === id}">${label}<span class="n">${n.toLocaleString()}</span></button>`;
   }).join("");
+
+  renderCategories();
 
   // source checkboxes with counts (counted with every other filter applied)
   const counts = {};
@@ -479,6 +533,7 @@ function renderDetail() {
     ["Remote", j.remote ? "Yes" : "No / not stated"],
     ["Salary", j.salary || "Not listed"],
     ["Posted", j.posted_at ? `${new Date(j.posted_at).toLocaleDateString(undefined, { dateStyle: "medium" })} (${relTime(j.posted_at)})` : "Unknown"],
+    ["Kind of job", j.category ? categoryName(j.category) : "Not known"],
     ["Found on", SOURCE_NAMES[j.source] || j.source],
   ];
   if (state.near.status === "found" && j._dist != null) facts.splice(1, 0, ["Distance", `about ${Math.max(1, Math.round(j._dist))} mi from ${state.near.place.label}`]);
@@ -550,8 +605,11 @@ function renderSettings() {
     });
   }
   $("companyList").innerHTML = items.join("") || `<li class="none">No companies yet.</li>`;
+  $("areaCategory").innerHTML = `<option value="">All kinds of jobs</option>` + Object.keys(state.data.categories || {})
+    .sort((a, b) => categoryName(a).localeCompare(categoryName(b)))
+    .map((t) => `<option value="${esc(t)}">${esc(categoryName(t))}</option>`).join("");
   $("areaList").innerHTML = cfg.areas.map((a, i) => {
-    const text = `${a.where} · ${a.miles} mi${a.what ? ` · “${a.what}”` : ""}`;
+    const text = `${a.where} · ${a.miles} mi${a.category ? ` · ${categoryName(a.category)}` : ""}${a.what ? ` · “${a.what}”` : ""}`;
     return `<li>${esc(text)}<button type="button" data-remove-area="${i}" aria-label="Remove ${esc(text)}">✕</button></li>`;
   }).join("") || `<li class="none">No search areas yet. Add your ZIP code to see local jobs.</li>`;
 }
@@ -566,8 +624,9 @@ function addArea() {
     return;
   }
   const areas = state.draftConfig.areas;
-  if (!areas.some((a) => a.where.toLowerCase() === where.toLowerCase() && a.what.toLowerCase() === what.toLowerCase())) {
-    areas.push({ where, miles: Number($("areaMiles").value), what });
+  const category = $("areaCategory").value;
+  if (!areas.some((a) => a.where.toLowerCase() === where.toLowerCase() && a.what.toLowerCase() === what.toLowerCase() && (a.category || "") === category)) {
+    areas.push({ where, miles: Number($("areaMiles").value), what, category });
   }
   err.hidden = true;
   $("areaWhere").value = "";
@@ -576,22 +635,25 @@ function addArea() {
   $("areaWhere").focus();
 }
 
-/** "Get more jobs near …": add what's in the Near box as a search area, then refresh. */
-async function searchNearHere() {
+/** Search Adzuna right now for the ZIP/city, distance and kind of job in the sidebar (app only). */
+async function searchHere() {
   const f = state.filters;
-  const cfg = structuredClone(state.data.config);
-  cfg.areas = [...(cfg.areas || []), { where: f.loc.trim(), miles: Number(f.radius), what: "" }];
-  try {
-    state.data.config = await api("/api/config", cfg, "PUT");
-  } catch (e) {
-    showBanner(`Couldn't add that area: ${esc(e.message)}`, true);
-    return;
-  }
+  if (STATIC || state.searching || state.near.status !== "found") return;
   if (!state.data.config.adzuna?.has_keys) {
-    openSettings(`Added ${f.loc.trim()} as a search area. Paste your Adzuna codes below, then press “Save & refresh”.`);
+    openSettings("Searching needs your free Adzuna codes. Paste them below and press “Save & refresh”, then search again.");
     return;
   }
-  refresh();
+  state.searching = true;
+  renderNear();
+  $("status").textContent = `Searching near ${state.near.place.label}…`;
+  try {
+    state.data = await api("/api/search", { where: f.loc.trim(), miles: Number(f.radius), category: f.category, what: "" });
+  } catch (e) {
+    showBanner(`<b>Search failed:</b> ${esc(e.message)}`, true);
+  } finally {
+    state.searching = false;
+    render();
+  }
 }
 
 function addCompany() {
@@ -641,6 +703,7 @@ function bindFilters() {
   $("remote").addEventListener("change", () => { f.remote = $("remote").checked; state.shown = PAGE; render(); });
   $("radius").value = f.radius;
   $("radius").addEventListener("change", () => { f.radius = $("radius").value; state.shown = PAGE; render(); });
+  $("category").addEventListener("change", () => { f.category = $("category").value; state.shown = PAGE; render(); });
   $("withRemote").checked = f.withRemote;
   $("withRemote").addEventListener("change", () => { f.withRemote = $("withRemote").checked; state.shown = PAGE; render(); });
 }
@@ -650,6 +713,7 @@ function resetFilters() {
   for (const id of ["q", "loc", "exclude", "days"]) $(id).value = "";
   $("remote").checked = false;
   $("radius").value = DEFAULT_FILTERS.radius;
+  $("category").value = "";
   $("withRemote").checked = DEFAULT_FILTERS.withRemote;
   render();
 }
@@ -712,6 +776,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && state.selected && !$("settings").open) selectJob(null);
   if (e.key === "Enter" && document.activeElement?.matches(".job[data-key]")) selectJob(document.activeElement.dataset.key);
   if (e.key === "Enter" && document.activeElement === $("slugInput")) { e.preventDefault(); addCompany(); }
+  if (e.key === "Enter" && document.activeElement === $("loc") && !STATIC) { e.preventDefault(); searchHere(); }
   if (e.key === "Enter" && ["areaWhere", "areaWhat"].includes(document.activeElement?.id)) { e.preventDefault(); addArea(); }
   if (e.key === "Enter" && ["adzunaId", "adzunaKey"].includes(document.activeElement?.id)) e.preventDefault();
 });
@@ -723,7 +788,7 @@ $("resetBtn").addEventListener("click", resetFilters);
 $("moreBtn").addEventListener("click", () => { state.shown += PAGE; render(); });
 $("addCompanyBtn").addEventListener("click", addCompany);
 $("addAreaBtn").addEventListener("click", addArea);
-$("moreNearBtn").addEventListener("click", searchNearHere);
+$("searchBtn").addEventListener("click", searchHere);
 $("settingsForm").addEventListener("submit", (e) => {
   if (e.submitter?.value === "save") { e.preventDefault(); saveSettings(); }
 });

@@ -21,7 +21,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from . import demo, geo
-from .config import DEFAULT_CONFIG, public_config, validate_config  # noqa: F401 (re-exported)
+from .categories import CATEGORIES, add_categories
+from .config import DEFAULT_CONFIG, public_config, validate_config, with_area  # noqa: F401 (re-exported)
 from .scraper import Filters, add_coordinates, carry_over, dedupe, run
 from .sources import build_sources
 from .state import SeenStore
@@ -79,6 +80,7 @@ class Store:
                 **cache,
                 "jobs": jobs,
                 "config": public_config(self.config),
+                "categories": CATEGORIES,
                 "demo": self.demo,
                 "refreshing": self.refreshing,
             }
@@ -109,6 +111,7 @@ class Store:
                     raw = demo.jobs()
                     jobs, fetched, errors, labels = dedupe(raw), len(raw), {}, ["demo"]
                     add_coordinates(jobs)
+                    add_categories(jobs)
                 else:
                     sources = build_sources(self.config)
                     result = run(sources, Filters(), session=self.session)
@@ -119,10 +122,37 @@ class Store:
                 self.refreshing = False
         return self.state()
 
-    def _store_results(self, jobs, fetched, errors, labels):
+    def search(self, area: dict) -> dict:
+        """Search one place right away (Adzuna), add it to the search areas, and merge in the results."""
+        if not isinstance(area, dict):
+            raise ValueError("expected {where, miles, category, what}")
+        if self.demo:
+            raise ValueError("Live searches need real Adzuna codes, so they're off in demo mode.")
+        with self.refresh_lock:
+            with self.lock:
+                cfg = validate_config({**self.config, "areas": with_area(self.config, area)}, previous=self.config)
+                self.config = cfg
+                self._save("config.json", cfg)
+            self.refreshing = True
+            try:
+                only_this = {**cfg, "boards": {}, "companies": {}, "areas": [cfg["areas"][-1]]}
+                sources = build_sources(only_this)
+                result = run(sources, Filters(), session=self.session)
+                self._store_results(result.jobs, result.fetched, result.errors, [s.label for s in sources], merge=True)
+            finally:
+                self.refreshing = False
+        return self.state()
+
+    def _store_results(self, jobs, fetched, errors, labels, merge: bool = False):
+        """Save a run's jobs. merge=True (a single search) keeps everything already loaded."""
         now = datetime.now(timezone.utc).isoformat()
         with self.lock:
             previous = (self.cache or {}).get("fetched_at")
+            if merge and self.cache:
+                old = self.cache
+                errors = {**{k: v for k, v in (old.get("errors") or {}).items() if k not in labels}, **errors}
+                labels = [*[s for s in old.get("sources") or [] if s not in labels], *labels]
+                fetched = (old.get("fetched") or 0) + fetched
             out = []
             for j in jobs:
                 key = SeenStore.key(j)
@@ -132,9 +162,16 @@ class Store:
                 # "New" = appeared since the previous refresh (nothing is new on the very first one).
                 out.append({**j.to_dict(), "key": key, "is_new": bool(previous) and first_seen > previous})
             # Keep recent area-search jobs from earlier refreshes: each refresh only gets the newest few hundred.
-            carried = carry_over(out, (self.cache or {}).get("jobs") or [], self.config.get("areas") or [])
+            # A single search keeps every job already loaded.
+            old_jobs = (self.cache or {}).get("jobs") or []
+            if merge:
+                have = {j["key"] for j in out}
+                carried = out + [dict(j) for j in old_jobs if j["key"] not in have]
+            else:
+                carried = carry_over(out, old_jobs, self.config.get("areas") or [])
             for j in carried[len(out):]:
-                j["is_new"] = False
+                if not merge:
+                    j["is_new"] = False
                 j.pop("status", None)
                 self.tracking.setdefault(j["key"], {})["last_seen"] = now
             out = carried
@@ -205,6 +242,8 @@ class Handler(BaseHTTPRequestHandler):
             body = self._body()
             if method == "POST" and path == "/api/refresh":
                 return self._json(self.store.refresh())
+            if method == "POST" and path == "/api/search":
+                return self._json(self.store.search(body))
             if method == "PUT" and path == "/api/config":
                 return self._json(self.store.set_config(body))
             if method == "POST" and path == "/api/status":
