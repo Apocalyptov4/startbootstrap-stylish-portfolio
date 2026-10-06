@@ -41,7 +41,7 @@ class AdzunaSourceTests(unittest.TestCase):
     def test_request_parameters(self):
         _, session = self.fetch()
         p = session.params[0]
-        self.assertEqual((p["where"], p["what"], p["distance"], p["sort_by"]), ("60614", "nurse", 16, "date"))
+        self.assertEqual((p["where"], p["what"], p["distance"], p["sort_by"]), ("60614", "nurse", 10, "date"))
         self.assertEqual(len(session.calls), 1)  # 3 results < page size: no second page
 
     def test_missing_or_rejected_codes(self):

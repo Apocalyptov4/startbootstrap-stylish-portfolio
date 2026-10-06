@@ -20,6 +20,9 @@ from .base import Source
 API = "https://api.adzuna.com/v1/api/jobs/{country}/search/{page}"
 PAGE_SIZE = 50
 KM_PER_MILE = 1.609344
+# Adzuna's docs say "distance" is in kilometres, but live US results for 08088 with distance=80
+# reached ~75 miles away, so the US (and UK) site reads it as miles.
+MILES_COUNTRIES = {"us", "gb"}
 STATE_ABBREV = {name.title(): abbr for name, abbr in STATES.items()}
 
 
@@ -72,7 +75,7 @@ class Adzuna(Source):
                 "app_key": self.app_key,
                 "results_per_page": PAGE_SIZE,
                 "where": self.where,
-                "distance": round(self.miles * KM_PER_MILE),
+                "distance": self.miles if self.country in MILES_COUNTRIES else round(self.miles * KM_PER_MILE),
                 "sort_by": "date",
                 "max_days_old": self.max_days_old,
             }
