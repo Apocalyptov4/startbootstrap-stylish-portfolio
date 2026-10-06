@@ -36,6 +36,11 @@ jobs:
 
       - name: Fetch jobs
         working-directory: job-scraper
+        env:
+          # Free codes from developer.adzuna.com, saved as repository secrets
+          # (Settings → Secrets and variables → Actions). Never put them in sources.json.
+          ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
+          ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
         run: python -m jobscraper.site -c sources.json -o ../_site
 
       - uses: actions/upload-pages-artifact@v3

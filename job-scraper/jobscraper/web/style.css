@@ -112,6 +112,18 @@ input[type="search"], input:not([type]), select {
 }
 input::placeholder { color: var(--muted); opacity: .8; }
 
+.near-row { display: flex; gap: 6px; }
+.near-row select { width: 84px; flex: none; }
+.check { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; margin-top: 2px; }
+#nearHint.ok { color: var(--new); }
+#nearHint.warn { color: var(--danger); }
+.chip.dist { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.add-area, .key-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.add-area input, .key-row input { flex: 1 1 140px; min-width: 0; }
+.add-area select { width: 90px; flex: none; }
+.hint a { color: var(--accent); }
+.key-status-ok { color: var(--new); font-weight: 600; }
+
 .switch { display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 500; }
 .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .switch .track { width: 34px; height: 20px; border-radius: 20px; background: var(--line); position: relative; transition: background .15s; flex: none; }

@@ -31,16 +31,29 @@ ROLES = [
     ("Security Engineer", ["appsec", "cloud"]),
     ("Junior Software Engineer", ["java", "spring"]),
     ("Technical Writer", ["docs", "api"]),
+    ("Registered Nurse", ["healthcare", "nights"]),
+    ("Cashier", ["retail", "part time"]),
+    ("Warehouse Associate", ["logistics", "full time"]),
+    ("Barista", ["food service", "part time"]),
+    ("Delivery Driver", ["driving", "full time"]),
+    ("Dental Assistant", ["healthcare"]),
+    ("Line Cook", ["restaurant"]),
+    ("Bank Teller", ["finance", "customer service"]),
+    ("Electrician Apprentice", ["trades"]),
+    ("Front Desk Receptionist", ["office", "customer service"]),
 ]
 LOCATIONS = [
     ("Remote", True), ("Remote (Europe)", True), ("Remote - US", True), ("Berlin, Germany", False),
     ("London, UK", False), ("New York, NY", False), ("San Francisco, CA", False),
     ("Amsterdam, Netherlands", False), ("Toronto, Canada", False), ("Hybrid - Paris", False),
+    ("Chicago, IL", False), ("Evanston, IL", False), ("Oak Park, IL", False), ("Naperville, IL", False),
+    ("Schaumburg, IL", False), ("Milwaukee, WI", False), ("Austin, TX", False), ("Round Rock, TX", False),
+    ("Brooklyn, NY", False), ("Jersey City, NJ", False),
 ]
-SOURCES = ["greenhouse", "lever", "ashby", "remoteok", "remotive", "arbeitnow", "hackernews"]
+SOURCES = ["greenhouse", "lever", "ashby", "remoteok", "remotive", "arbeitnow", "hackernews", "adzuna", "adzuna", "adzuna"]
 
 
-def jobs(count: int = 60, seed: int = 7) -> list[Job]:
+def jobs(count: int = 150, seed: int = 7) -> list[Job]:
     rng = random.Random(seed)
     now = datetime.now(timezone.utc)
     out = []

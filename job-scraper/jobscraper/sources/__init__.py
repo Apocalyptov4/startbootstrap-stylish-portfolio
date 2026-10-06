@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .adzuna import Adzuna
 from .ats import Ashby, Greenhouse, Lever
 from .base import CompanySource, Source
 from .boards import Arbeitnow, HackerNewsHiring, Remotive, RemoteOK
@@ -19,7 +20,7 @@ BOARD_SOURCES: dict[str, type[Source]] = {
     "hackernews": HackerNewsHiring,
 }
 
-ALL_SOURCE_NAMES = [*BOARD_SOURCES, *COMPANY_SOURCES]
+ALL_SOURCE_NAMES = [*BOARD_SOURCES, *COMPANY_SOURCES, "adzuna"]
 
 
 def build_sources(config: dict, only: set[str] | None = None) -> list[Source]:
@@ -30,7 +31,9 @@ def build_sources(config: dict, only: set[str] | None = None) -> list[Source]:
       "companies": {
         "greenhouse": ["stripe", {"slug": "airbnb", "name": "Airbnb"}],
         "lever": [...], "ashby": [...]
-      }
+      },
+      "areas": [{"where": "60614", "miles": 25, "what": "nurse"}],   # searched on Adzuna
+      "adzuna": {"app_id": "...", "app_key": "...", "max_pages": 10}
     }
     """
     sources: list[Source] = []
@@ -53,6 +56,19 @@ def build_sources(config: dict, only: set[str] | None = None) -> list[Source]:
                 sources.append(COMPANY_SOURCES[ats](entry))
             else:
                 sources.append(COMPANY_SOURCES[ats](entry["slug"], entry.get("name")))
+
+    if not only or "adzuna" in only:
+        az = config.get("adzuna") or {}
+        for area in config.get("areas") or []:
+            sources.append(Adzuna(
+                where=area["where"],
+                miles=int(area.get("miles") or 25),
+                what=area.get("what") or "",
+                app_id=az.get("app_id", ""),
+                app_key=az.get("app_key", ""),
+                country=az.get("country", "us"),
+                max_pages=int(az.get("max_pages") or 10),
+            ))
 
     return sources
 

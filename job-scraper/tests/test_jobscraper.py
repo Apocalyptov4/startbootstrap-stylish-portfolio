@@ -32,21 +32,46 @@ ROUTES = [
     ("https://www.arbeitnow.com/api/job-board-api", "arbeitnow_p1.json"),
     ("https://hn.algolia.com/api/v1/search_by_date", "hn_search.json"),
     ("https://hn.algolia.com/api/v1/items/", "hn_item.json"),
+    ("https://api.adzuna.com/v1/api/jobs/", "adzuna.json"),
 ]
 
 
+class FakeResponse:
+    def __init__(self, status_code, data):
+        self.status_code, self._data = status_code, data
+
+    def json(self):
+        return self._data
+
+
 class FakeSession:
-    def __init__(self, fail=()):
+    """Serves tests/fixtures instead of the network. `status` maps a URL part to an HTTP error code."""
+
+    def __init__(self, fail=(), status=None):
         self.fail = fail
+        self.status = status or {}
         self.calls = []
+        self.params = []
 
     def get_json(self, url, **kwargs):
+        resp = self.get(url, **kwargs)
+        if resp.status_code >= 400:
+            raise ConnectionError(f"HTTP {resp.status_code}: {url}")
+        return resp.json()
+
+    def get(self, url, params=None, **kwargs):
         self.calls.append(url)
+        self.params.append(params or {})
+        query = "&".join(f"{k}={v}" for k, v in (params or {}).items())
         if any(f in url for f in self.fail):
-            raise ConnectionError(f"boom: {url}")
+            import requests
+            raise requests.ConnectionError(f"boom: {url}?{query}")
+        for part, code in self.status.items():
+            if part in url:
+                return FakeResponse(code, {})
         for prefix, name in ROUTES:
             if url.startswith(prefix):
-                return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+                return FakeResponse(200, json.loads((FIXTURES / name).read_text(encoding="utf-8")))
         raise AssertionError(f"unexpected URL {url}")
 
 

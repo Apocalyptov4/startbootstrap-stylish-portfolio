@@ -1,6 +1,6 @@
 # Job Radar
 
-Job Radar is an app that collects job openings from many sites into one list. You can search it, filter it, and track which jobs you've saved or applied to. It runs on your own computer and opens in your web browser.
+Job Radar is an app that collects job openings from many sites into one list. You can search it, filter it by distance from a US ZIP code or city, and track which jobs you've saved or applied to. It runs on your own computer and opens in your web browser.
 
 ![Job Radar screenshot](docs/screenshot.png)
 
@@ -27,7 +27,7 @@ These warnings appear because the program isn't signed with a paid Microsoft or 
 
 GitHub rebuilds the website every 6 hours with the latest jobs and publishes it with GitHub Pages at <https://apocalyptov4.github.io/startbootstrap-stylish-portfolio/>.
 
-* The job sites and companies it covers are set in [`sources.json`](sources.json). Edit that file on GitHub to change them. The **Edit on GitHub** button in the website's Settings takes you there.
+* The search areas, job sites and companies it covers are set in [`sources.json`](sources.json). Edit that file on GitHub to change them. The **Edit on GitHub** button in the website's Settings takes you there.
 * Saved, applied and hidden marks are kept in the browser you set them in. Your phone and your laptop keep separate lists.
 * **New** shows jobs that appeared since your last visit.
 * Anyone with the link can see the job list. Your marks are never uploaded.
@@ -37,6 +37,9 @@ One-time setup in the repository on GitHub:
 1. **Actions** tab → click **"I understand my workflows, go ahead and enable them"**. This step is only needed because this repository is a fork.
 2. **Settings → Pages → Build and deployment → Source:** choose **GitHub Actions**.
 3. Get the code onto the `master` branch. GitHub only publishes websites from the default branch.
+4. For local jobs from Adzuna: **Settings → Secrets and variables → Actions → New repository secret**. Add `ADZUNA_APP_ID` and `ADZUNA_APP_KEY` with your free codes from [developer.adzuna.com](https://developer.adzuna.com/signup). Then add your ZIP code to `"areas"` in `sources.json`, for example `{"where": "60614", "miles": 25, "what": ""}`.
+
+The Adzuna codes stay in GitHub's private secrets storage and are never written to the published site.
 
 To build the website on your own computer: `python -m jobscraper.site -c sources.json -o _site`, then open `_site/index.html` through any web server.
 
@@ -55,11 +58,13 @@ To try the app with made-up sample jobs, start it with `python -m jobscraper ui 
 ## What you can do in the app
 
 * **Refresh** checks every site you follow and shows the combined list, with duplicate postings removed and the newest first.
-* **Search and filter** by keyword, location, remote only, posting date and site. You can also hide titles containing certain words, such as "senior".
+* **Near:** type a US ZIP code or city, such as `60614` or `Austin, TX`, and pick a distance (5–100 miles). Each job shows how far away it is, and **Nearest first** sorts by distance. Remote jobs are included unless you untick **Include remote jobs**. Places outside the US fall back to matching the location text.
+* **Search and filter** by keyword, remote only, posting date and site. You can also hide titles containing certain words, such as "senior".
 * **Save** (star), **Mark applied** (check mark) or **Hide** (crossed-out eye) any job. The tabs across the top list each group.
 * The **New** tab shows jobs that appeared since your last refresh.
 * **Click a job** to see its details, then use **Open job posting** to apply on the company's site.
-* **Settings** (gear icon) lets you turn job sites on or off and follow specific companies. Paste a careers link such as `jobs.lever.co/spotify`, `boards.greenhouse.io/stripe` or `jobs.ashbyhq.com/notion`.
+* **Settings** (gear icon) lets you add **search areas** (a ZIP code or city, a distance, and optional keywords such as "nurse"), enter your Adzuna codes, turn job sites on or off, and follow specific companies. To follow a company, paste a careers link such as `jobs.lever.co/spotify`, `boards.greenhouse.io/stripe` or `jobs.ashbyhq.com/notion`.
+* **Get more jobs near …** appears under the Near box when you search a place that isn't one of your search areas yet. It adds the place as an area and refreshes.
 
 Your settings, the jobs found and your saved, applied and hidden marks are stored in the `~/.jobscraper` folder on your computer. Use `--data-dir` to store them somewhere else.
 
@@ -73,6 +78,7 @@ It uses each site's **public JSON API** and does not parse HTML pages. That make
 
 | Source | What it covers | Config key |
 |---|---|---|
+| [Adzuna](https://www.adzuna.com) | Jobs in every industry from thousands of employers and job sites, searched around each of your areas. Needs free codes from [developer.adzuna.com](https://developer.adzuna.com/signup). | `areas`, `adzuna` |
 | [RemoteOK](https://remoteok.com) | Remote jobs, mostly tech | `boards.remoteok` |
 | [Remotive](https://remotive.com) | Remote jobs, all categories | `boards.remotive` |
 | [Arbeitnow](https://www.arbeitnow.com) | Europe and Germany, including visa-sponsored roles | `boards.arbeitnow` |
@@ -88,6 +94,16 @@ boards.greenhouse.io/<slug>   or  job-boards.greenhouse.io/<slug>  -> "greenhous
 jobs.lever.co/<slug>                                               -> "lever"
 jobs.ashbyhq.com/<slug>                                            -> "ashby"
 ```
+
+### Search areas and Adzuna
+
+Each search area is one Adzuna search: up to `max_pages` × 50 of the newest jobs within `miles` of `where`, optionally narrowed by `what`. Each refresh fetches only the newest jobs, so area jobs from earlier refreshes are kept for up to 21 days while that area is still in your settings. This builds up a fuller local list over a few refreshes.
+
+Adzuna's free plan limits how many requests you can make. Each page of 50 jobs is one request, and the website makes up to `max_pages` per area every 6 hours. If you add many areas, lower `max_pages` or use keywords. When the limit is reached, Adzuna is skipped with a clear message and the other sources still load.
+
+### Placing jobs on the map
+
+Distances use US ZIP code and city centre points from the [`zipcodes`](https://pypi.org/project/zipcodes/) package (MIT License, in `jobscraper/data/`). Adzuna gives each job's position directly. For other sources, the position is worked out from location text such as "Austin, TX" or "New York, NY 10001". Jobs whose location can't be placed, such as "Remote" or anything outside the US, don't appear in a Near search, except for remote jobs when **Include remote jobs** is ticked.
 
 ## Command-line version
 

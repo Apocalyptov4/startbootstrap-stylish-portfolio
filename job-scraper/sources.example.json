@@ -1,18 +1,48 @@
 {
+  "areas": [
+    {
+      "where": "60614",
+      "miles": 25,
+      "what": ""
+    },
+    {
+      "where": "Austin, TX",
+      "miles": 15,
+      "what": "nurse"
+    }
+  ],
+  "adzuna": {
+    "max_pages": 10
+  },
   "boards": {
     "remoteok": true,
     "remotive": true,
-    "arbeitnow": { "max_pages": 3 },
+    "arbeitnow": {
+      "max_pages": 3
+    },
     "hackernews": true
   },
   "companies": {
-    "greenhouse": ["stripe", "airbnb", "figma", "discord", "cloudflare", "datadog"],
-    "lever": ["palantir", "spotify"],
+    "greenhouse": [
+      "stripe",
+      "airbnb",
+      "figma",
+      "discord",
+      "cloudflare",
+      "datadog"
+    ],
+    "lever": [
+      "palantir",
+      "spotify"
+    ],
     "ashby": [
       "openai",
       "ramp",
       "linear",
-      { "slug": "notion", "name": "Notion" }
+      {
+        "slug": "notion",
+        "name": "Notion"
+      }
     ]
   }
 }
