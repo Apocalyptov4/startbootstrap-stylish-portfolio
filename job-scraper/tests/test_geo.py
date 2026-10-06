@@ -14,8 +14,9 @@ class LookupTests(unittest.TestCase):
         return place.label if place else None
 
     def test_zip_codes(self):
-        self.assertEqual(self.label("60614"), "60614")
-        self.assertEqual(self.label("10001-1234"), "10001")
+        self.assertEqual(self.label("60614"), "60614 (Chicago, IL)")
+        self.assertEqual(self.label("10001-1234"), "10001 (New York, NY)")
+        self.assertEqual(self.label("08088"), "08088 (Vincentown, NJ)")
         self.assertIsNone(geo.lookup("99999"))  # not a real ZIP
 
     def test_city_forms(self):
@@ -45,7 +46,7 @@ class LocateJobTests(unittest.TestCase):
             "Denver, CO (Hybrid)": "Denver, CO",
             "Seattle, WA; New York, NY": "Seattle, WA",
             "Mountain View, CA / Remote": "Mountain View, CA",
-            "Chicago, IL 60601": "60601",
+            "Chicago, IL 60601": "60601 (Chicago, IL)",
             "US-CA-San Jose": "San Jose, CA",
             "SF Bay Area": "San Francisco, CA",
             "San Francisco, California, USA": "San Francisco, CA",

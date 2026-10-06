@@ -50,7 +50,7 @@ class ServerTests(unittest.TestCase):
             self.assertIn(needle, body)
         status, places = self.call("/places.json")
         self.assertEqual(status, 200)
-        self.assertEqual(places["zips"]["60614"], [41.922, -87.649])
+        self.assertEqual(places["zips"]["60614"], [41.922, -87.649, "Chicago, IL"])
         self.assertEqual(self.call("/nope")[0], 404)
 
     def test_refresh_then_state(self):
@@ -96,6 +96,14 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertIn("not a valid", err["error"])
 
+    def test_search_route(self):
+        self.store.set_config({**RunTests.config, "adzuna": {"app_id": "abc", "app_key": "def"}})
+        status, state = self.call("/api/search", {"where": "08088", "miles": 50, "category": ""})
+        self.assertEqual(status, 200)
+        self.assertEqual(len(state["jobs"]), 3)
+        self.assertIn("categories", state)
+        self.assertEqual(self.call("/api/search", {"where": ""})[0], 400)
+
     def test_rejects_cross_site_writes(self):
         status, _ = self.call("/api/refresh", {}, headers={"Origin": "https://evil.example"})
         self.assertEqual(status, 403)
@@ -110,6 +118,19 @@ class ServerTests(unittest.TestCase):
         _, state = self.call("/api/refresh", {})
         self.assertEqual(sorted(state["errors"]), ["lever:globex", "remotive"])
         self.assertEqual(len(state["jobs"]), 8)
+
+
+class PageScriptTests(unittest.TestCase):
+    def test_every_event_handler_exists(self):
+        """Catches a handler being renamed or deleted, which a syntax check doesn't."""
+        import re
+        from jobscraper.server import WEB_DIR
+
+        js = (WEB_DIR / "app.js").read_text(encoding="utf-8")
+        handlers = set(re.findall(r'addEventListener\("\w+", (\w+)\)', js))
+        self.assertIn("searchHere", handlers)
+        for name in handlers:
+            self.assertRegex(js, rf"(async )?function {name}\(", name)
 
 
 class DemoTests(unittest.TestCase):

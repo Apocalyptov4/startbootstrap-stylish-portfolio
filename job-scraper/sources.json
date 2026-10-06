@@ -1,5 +1,11 @@
 {
-  "areas": [],
+  "areas": [
+    {
+      "where": "08088",
+      "miles": 50,
+      "what": ""
+    }
+  ],
   "adzuna": {
     "max_pages": 10
   },

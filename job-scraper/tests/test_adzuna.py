@@ -7,13 +7,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from jobscraper import site
-from jobscraper.config import public_config, validate_config
+from jobscraper.categories import guess_category
+from jobscraper.config import MAX_AREAS, public_config, validate_config, with_area
 from jobscraper.scraper import Filters, carry_over, run, scrub
 from jobscraper.server import Store
 from jobscraper.sources import build_sources
 from jobscraper.sources.adzuna import Adzuna, AdzunaError
 
-from .test_jobscraper import FakeSession
+from .test_jobscraper import FakeSession, RunTests
 
 KEYS = {"app_id": "abc123", "app_key": "SECRETKEY99"}
 CONFIG = {"boards": {}, "areas": [{"where": "60614", "miles": 10, "what": "nurse"}], "adzuna": {**KEYS, "max_pages": 3}}
@@ -121,6 +122,70 @@ class CarryOverTests(unittest.TestCase):
             self.assertEqual(payload["carried_over"], 1)
             self.assertEqual(len(payload["jobs"]), 4)
             self.assertTrue(all("uid" not in j for j in payload["jobs"]))
+
+
+class KindOfJobTests(unittest.TestCase):
+    def test_adzuna_category_is_kept_and_can_be_searched(self):
+        session = FakeSession()
+        src = Adzuna("08088", miles=50, category="healthcare-nursing-jobs", **KEYS)
+        jobs = list(src.fetch(session))
+        self.assertEqual(session.params[0]["category"], "healthcare-nursing-jobs")
+        self.assertEqual(jobs[0].category, "healthcare-nursing-jobs")
+        self.assertEqual(src.label, "adzuna:08088 (healthcare nursing)")
+
+    def test_other_sources_get_a_guess_from_the_title(self):
+        cases = {"Registered Nurse": "healthcare-nursing-jobs", "Retail Sales Associate": "retail-jobs",
+                 "Forklift Operator": "logistics-warehouse-jobs", "Senior Backend Engineer": "it-jobs",
+                 "Line Cook": "hospitality-catering-jobs", "Account Executive": "sales-jobs", "Chief of Staff": ""}
+        for title, want in cases.items():
+            self.assertEqual(guess_category(title), want, title)
+        result = run(build_sources(RunTests.config), Filters(), session=FakeSession())
+        by_title = {j.title: j.category for j in result.jobs}
+        self.assertEqual(by_title["Frontend Developer"], "it-jobs")
+        self.assertEqual(by_title["Account Executive"], "sales-jobs")
+
+    def test_area_category_is_validated(self):
+        cfg = validate_config({"areas": [{"where": "08088", "category": "retail-jobs"}, {"where": "08088"}]})
+        self.assertEqual(cfg["areas"], [{"where": "08088", "miles": 25, "what": "", "category": "retail-jobs"},
+                                        {"where": "08088", "miles": 25, "what": ""}])
+        with self.assertRaises(ValueError):
+            validate_config({"areas": [{"where": "08088", "category": "Bad Category!"}]})
+
+
+class InstantSearchTests(unittest.TestCase):
+    def test_with_area_replaces_same_search_and_keeps_home(self):
+        cfg = {"areas": [{"where": "08088", "miles": 50, "what": ""}]}
+        areas = with_area(cfg, {"where": "08088", "miles": 25, "what": ""})
+        self.assertEqual(areas, [{"where": "08088", "miles": 25, "what": ""}])
+        full = {"areas": [{"where": f"{10000 + i}", "miles": 10, "what": ""} for i in range(MAX_AREAS)]}
+        areas = with_area(full, {"where": "19103", "miles": 5, "what": ""})
+        self.assertEqual(len(areas), MAX_AREAS)
+        self.assertEqual(areas[0]["where"], "10000")      # home kept
+        self.assertEqual(areas[-1]["where"], "19103")     # newest last
+        self.assertNotIn("10001", [a["where"] for a in areas])  # oldest other one dropped
+
+    def test_search_adds_jobs_without_losing_others(self):
+        with tempfile.TemporaryDirectory() as d:
+            session = FakeSession()
+            store = Store(Path(d), session=session)
+            store.set_config({**RunTests.config, "adzuna": KEYS})
+            before = store.refresh()
+            self.assertEqual(len(before["jobs"]), 11)
+            session.calls.clear()
+            after = store.search({"where": "19103", "miles": 10, "category": "retail-jobs"})
+            self.assertTrue(all("adzuna" in url for url in session.calls))  # only Adzuna was asked
+            self.assertEqual(len(after["jobs"]), 14)                         # 11 kept + 3 found
+            self.assertIn({"where": "19103", "miles": 10, "what": "", "category": "retail-jobs"}, after["config"]["areas"])
+            self.assertIn("adzuna:19103 (retail)", after["sources"])
+            self.assertNotIn("SECRETKEY99", json.dumps(after))
+
+    def test_search_validation_and_demo(self):
+        with tempfile.TemporaryDirectory() as d:
+            store = Store(Path(d), session=FakeSession())
+            with self.assertRaises(ValueError):
+                store.search({"where": "<b>"})
+            with self.assertRaisesRegex(ValueError, "demo"):
+                Store(Path(d), demo_mode=True).search({"where": "08088"})
 
 
 if __name__ == "__main__":

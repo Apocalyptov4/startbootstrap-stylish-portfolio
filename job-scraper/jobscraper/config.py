@@ -14,13 +14,14 @@ from .sources import BOARD_SOURCES, COMPANY_SOURCES
 SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$")
 WHERE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 .,'\-]{0,79}$")
 WHAT_RE = re.compile(r"^[\w .,'&+#/\-]{0,100}$")
+CATEGORY_RE = re.compile(r"^[a-z0-9-]{0,60}$")
 KEY_RE = re.compile(r"^[A-Za-z0-9_\-]{1,100}$")
 MAX_AREAS = 10
 
 DEFAULT_CONFIG = {
     "boards": {name: True for name in BOARD_SOURCES},
     "companies": {ats: [] for ats in COMPANY_SOURCES},
-    "areas": [],
+    "areas": [{"where": "08088", "miles": 50, "what": ""}],
     "adzuna": {"app_id": "", "app_key": "", "max_pages": 10},
 }
 
@@ -57,6 +58,9 @@ def validate_config(cfg: dict, previous: dict | None = None) -> dict:
             raise ValueError("each search area must be an object")
         where = re.sub(r"\s+", " ", str(a.get("where") or "")).strip()
         what = re.sub(r"\s+", " ", str(a.get("what") or "")).strip()
+        category = str(a.get("category") or "").strip()
+        if not CATEGORY_RE.match(category):
+            raise ValueError(f"'{category}' is not a known kind of job")
         if not WHERE_RE.match(where):
             raise ValueError(f"'{where}' doesn't look like a ZIP code or city")
         if not WHAT_RE.match(what):
@@ -67,10 +71,14 @@ def validate_config(cfg: dict, previous: dict | None = None) -> dict:
             raise ValueError("distance must be a number of miles") from None
         if not 1 <= miles <= 200:
             raise ValueError("distance must be between 1 and 200 miles")
-        if (where.lower(), what.lower()) in seen:
+        key = (where.lower(), what.lower(), category)
+        if key in seen:
             continue
-        seen.add((where.lower(), what.lower()))
-        areas.append({"where": where, "miles": miles, "what": what})
+        seen.add(key)
+        area = {"where": where, "miles": miles, "what": what}
+        if category:
+            area["category"] = category
+        areas.append(area)
     if len(areas) > MAX_AREAS:
         raise ValueError(f"at most {MAX_AREAS} search areas")
 
@@ -88,6 +96,25 @@ def validate_config(cfg: dict, previous: dict | None = None) -> dict:
         raise ValueError("max_pages must be a number") from None
 
     return {"boards": boards, "companies": companies, "areas": areas, "adzuna": adzuna}
+
+
+def same_area(a: dict, b: dict) -> bool:
+    """Same place, keywords and kind of job (the distance may differ)."""
+    def norm(x):
+        return (str(x.get("where") or "").strip().lower(), str(x.get("what") or "").strip().lower(),
+                str(x.get("category") or ""))
+    return norm(a) == norm(b)
+
+
+def with_area(cfg: dict, area: dict) -> list[dict]:
+    """The config's areas with `area` added last (replacing the same search), oldest dropped if full.
+
+    The first area is treated as home and always kept.
+    """
+    areas = [a for a in cfg.get("areas") or [] if not same_area(a, area)]
+    if len(areas) >= MAX_AREAS:
+        areas = areas[:1] + areas[-(MAX_AREAS - 2):]
+    return [*areas, area]
 
 
 def public_config(cfg: dict) -> dict:

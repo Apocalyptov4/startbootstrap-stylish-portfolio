@@ -24,6 +24,7 @@ class Job:
     lat: Optional[float] = None   # map position, when the location is a known US place
     lon: Optional[float] = None
     area: str = ""         # for area searches (Adzuna): the ZIP/city searched around
+    category: str = ""     # kind of job, as an Adzuna category tag such as "retail-jobs"
 
     @property
     def uid(self) -> str:

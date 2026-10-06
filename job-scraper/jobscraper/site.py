@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import demo, geo
+from .categories import CATEGORIES, add_categories
 from .config import public_config, validate_config
 from .http import Session
 from .scraper import Filters, add_coordinates, carry_over, dedupe, run
@@ -41,6 +42,7 @@ def build(config: dict, out_dir: Path, session=None, repo: str | None = None, us
         raw = demo.jobs()
         jobs, fetched, errors, labels = dedupe(raw), len(raw), {}, ["demo"]
         add_coordinates(jobs)
+        add_categories(jobs)
     else:
         sources = build_sources(config)
         result = run(sources, Filters(), session=session)
@@ -55,6 +57,7 @@ def build(config: dict, out_dir: Path, session=None, repo: str | None = None, us
         "errors": errors,
         "sources": labels,
         "config": public_config(config),  # never publish the Adzuna codes
+        "categories": CATEGORIES,
         "jobs": [],
     }
     fresh = [_slim({**j.to_dict(), "key": SeenStore.key(j)}) for j in jobs]

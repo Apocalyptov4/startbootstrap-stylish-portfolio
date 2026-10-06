@@ -101,6 +101,13 @@ def _biggest_by_name() -> dict[str, str]:
     return best
 
 
+def _zip(code: str) -> Place | None:
+    z = _data()["zips"].get(code)
+    if not z:
+        return None
+    return Place(z[0], z[1], f"{code} ({z[2]})" if len(z) > 2 else code)
+
+
 def _state(text: str) -> str | None:
     t = text.strip().rstrip(".")
     if t.upper() in ABBREVS:
@@ -114,8 +121,7 @@ def lookup(text: str) -> Place | None:
     if not t:
         return None
     if m := re.fullmatch(r"(\d{5})(?:-\d{4})?", t):
-        z = _data()["zips"].get(m.group(1))
-        return Place(z[0], z[1], m.group(1)) if z else None
+        return _zip(m.group(1))
     if "," in t:
         city, _, rest = t.partition(",")
         st = _state(rest.split(",")[0])
@@ -143,9 +149,8 @@ def locate_job(location: str) -> Place | None:
     if NON_US.search(text):
         return None
     if m := ZIP_RE.search(text):
-        z = _data()["zips"].get(m.group(1))
-        if z:
-            return Place(z[0], z[1], m.group(1))
+        if hit := _zip(m.group(1)):
+            return hit
     for part in re.split(r"\s*(?:;|\||/| or | & |\n)\s*", text):
         part = part.strip(" ,-()")
         if not part:
