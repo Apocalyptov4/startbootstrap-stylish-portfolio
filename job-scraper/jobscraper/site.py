@@ -67,7 +67,7 @@ def build(config: dict, out_dir: Path, session=None, repo: str | None = None, us
     payload["carried_over"] = len(combined) - len(fresh)
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    for name in ("app.js", "style.css"):
+    for name in ("app.js", "apply.js", "style.css"):
         shutil.copy(WEB_DIR / name, out_dir / name)
     page = (WEB_DIR / "index.html").read_text(encoding="utf-8")
     assert '<script src="app.js"></script>' in page

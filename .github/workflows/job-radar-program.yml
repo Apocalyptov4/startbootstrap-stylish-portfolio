@@ -60,6 +60,10 @@ jobs:
           curl -sf http://127.0.0.1:8799/ | grep -q "<title>Job Radar</title>"
           curl -sf http://127.0.0.1:8799/app.js > /dev/null
           curl -sf http://127.0.0.1:8799/places.json | grep -q '"60614"'
+          # The resume features' libraries must be inside the program.
+          check=$(curl -sf http://127.0.0.1:8799/api/selfcheck)
+          echo "$check"
+          if [[ "$check" != *'"pypdf"'* || "$check" == *unavailable* ]]; then echo "Resume libraries are missing from the program."; exit 1; fi
           curl -sf -X POST -H "Content-Type: application/json" -d "{}" http://127.0.0.1:8799/api/refresh | grep -q '"demo": true'
           echo "Program works."
           if [ "$RUNNER_OS" = Windows ]; then taskkill //IM JobRadar.exe //F; else kill $pid; fi

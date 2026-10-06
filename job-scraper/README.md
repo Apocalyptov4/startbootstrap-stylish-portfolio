@@ -69,7 +69,26 @@ To try the app with made-up sample jobs, start it with `python -m jobscraper ui 
 * **Settings** (gear icon) lets you add **search areas** (a ZIP code or city, a distance, and optional keywords such as "nurse"), enter your Adzuna codes, turn job sites on or off, and follow specific companies. To follow a company, paste a careers link such as `jobs.lever.co/spotify`, `boards.greenhouse.io/stripe` or `jobs.ashbyhq.com/notion`.
 * **Get more jobs near …** appears under the Near box when you search a place that isn't one of your search areas yet. It adds the place as an area and refreshes.
 
-Your settings, the jobs found and your saved, applied and hidden marks are stored in the `~/.jobscraper` folder on your computer. Use `--data-dir` to store them somewhere else.
+## Your resume and applying
+
+These features are in the program and the source-code version, not the website.
+
+* **My resume** (top right) stores your resume on your computer. Upload a PDF, Word (`.docx`) or text file, or paste the text. You can keep several versions and pick which one is your main resume. Each stored resume has a **Download** link, so you always have the original file ready to attach on a job site.
+* **Match score:** when you click a job, its details show how well your main resume matches it, which of the job's keywords your resume already has, and which are missing. This is free and runs on your computer.
+* **Tailor my resume** uses Claude, Anthropic's AI, to fit your resume to one job and write a matching cover letter. Open the job posting, copy the whole description, paste it into the Tailor window and click **Tailor my resume**.
+  * Claude only rewords and reorders what's already on your resume. It doesn't add jobs, skills, licenses or degrees you don't list. If the job asks for something your resume doesn't show, the app lists it separately and warns you not to claim it unless it's true.
+  * You get the tailored resume and cover letter as Word files (named like `Jane Doe - Resume - Acme Health.docx`) and as printable pages. On a printable page, click **Save as PDF / Print** to make a PDF.
+  * Each tailored version is saved with the job it was made for, under the job's details, so you can download it again later.
+  * Read it over before you send it.
+
+Tailoring needs an Anthropic API key, which is separate from a Claude.ai subscription:
+
+1. Sign in at [console.anthropic.com](https://console.anthropic.com/), add a payment method or credits under **Billing**, and create a key under **API keys**.
+2. In Job Radar, open **Settings**, paste the key under **Resume tailoring (AI)** and click **Save & refresh**.
+
+Each tailored resume usually costs about 10–30 cents, and the app shows the cost after each one. The key is stored only in the app's settings file on your computer. It's never shown in the page or published to the website.
+
+Your settings, the jobs found, your saved, applied and hidden marks, your resumes and tailored versions are stored in the `~/.jobscraper` folder on your computer. Use `--data-dir` to store them somewhere else.
 
 Other options: `--port 8766` if port 8765 is already in use, and `--no-browser` to stop the app opening a browser tab.
 
@@ -177,7 +196,12 @@ jobscraper/
   sources/     one module per kind of site; each yields Job objects
   scraper.py   fetches all sources in parallel, then filters, de-duplicates and sorts
   server.py    the local web app's server and JSON API (standard library only)
-  web/         the app's page: index.html, style.css, app.js (no build step)
+  web/         the app's page: index.html, style.css, app.js, apply.js (no build step)
+  resumes.py   stored resumes and reading text from PDF, Word and text files
+  match.py     the free keyword match score
+  tailor.py    resume tailoring with the Claude API
+  documents.py Word and printable versions of a tailored resume and cover letter
+  applying.py  ties the above together for the app
   cli.py       the command-line version
   site.py      builds the static website version
 packaging/     how the one-file program is built (PyInstaller)

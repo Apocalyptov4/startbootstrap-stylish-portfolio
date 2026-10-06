@@ -51,6 +51,8 @@ class ServerTests(unittest.TestCase):
         status, places = self.call("/places.json")
         self.assertEqual(status, 200)
         self.assertEqual(places["zips"]["60614"], [41.922, -87.649, "Chicago, IL"])
+        status, check = self.call("/api/selfcheck")
+        self.assertEqual(sorted(check), ["anthropic", "pypdf"])
         self.assertEqual(self.call("/nope")[0], 404)
 
     def test_refresh_then_state(self):
@@ -126,9 +128,9 @@ class PageScriptTests(unittest.TestCase):
         import re
         from jobscraper.server import WEB_DIR
 
-        js = (WEB_DIR / "app.js").read_text(encoding="utf-8")
+        js = "\n".join((WEB_DIR / f).read_text(encoding="utf-8") for f in ("app.js", "apply.js"))
         handlers = set(re.findall(r'addEventListener\("\w+", (\w+)\)', js))
-        self.assertIn("searchHere", handlers)
+        self.assertTrue({"searchHere", "openResumes", "uploadResume", "clearAnthropicKey"} <= handlers, handlers)
         for name in handlers:
             self.assertRegex(js, rf"(async )?function {name}\(", name)
 
