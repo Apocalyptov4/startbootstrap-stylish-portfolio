@@ -3,9 +3,12 @@
     python -m jobscraper.site -c sources.json -o _site
 
 It fetches every source once, writes the results to data.json and copies the
-app's page next to it. On the website, saved/applied/hidden marks are kept in
-each visitor's browser, and the job list is rebuilt on a schedule
-(see .github/workflows/job-radar-website.yml).
+app's page next to it. On the website, saved/applied/hidden marks, resumes and
+tailored versions are kept in each visitor's browser, and the job list is rebuilt
+on a schedule (see .github/workflows/job-radar-website.yml).
+
+Reading PDF resumes and tailoring with Claude need the browser libraries in
+jobscraper/web/vendor/; build them first with `npm ci && npm run build` in web-vendor/.
 """
 
 from __future__ import annotations
@@ -19,7 +22,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import demo, geo
+from . import demo, geo, tailor
 from .categories import CATEGORIES, add_categories
 from .config import public_config, validate_config
 from .http import Session
@@ -30,7 +33,25 @@ from .state import SeenStore
 
 MAX_JOBS = 25000          # keeps data.json a reasonable download on a phone
 DESCRIPTION_CHARS = 300
-STATIC_FLAG = '<script>window.JOB_RADAR_STATIC = true;</script>\n  <script src="app.js"></script>'
+# The website's extra scripts: static.js says "this is the website", resume-local.js keeps resumes in the browser.
+SCRIPTS = {
+    '<script src="app.js"></script>': '<script src="static.js"></script>\n  <script src="app.js"></script>',
+    '<script src="apply.js"></script>': '<script src="resume-local.js"></script>\n  <script src="apply.js"></script>',
+}
+VENDOR_FILES = ("anthropic-sdk.mjs", "pdf.min.mjs", "pdf.worker.min.mjs")
+
+
+def copy_vendor(out_dir: Path) -> bool:
+    missing = [f for f in VENDOR_FILES if not (WEB_DIR / "vendor" / f).is_file()]
+    if missing:
+        logging.getLogger("jobscraper").warning(
+            "Browser libraries missing (%s): reading PDF resumes and tailoring won't work on this build. "
+            "Run `npm ci && npm run build` in web-vendor/ first.", ", ".join(missing))
+        return False
+    (out_dir / "vendor").mkdir(exist_ok=True)
+    for f in VENDOR_FILES:
+        shutil.copy(WEB_DIR / "vendor" / f, out_dir / "vendor" / f)
+    return True
 
 
 def build(config: dict, out_dir: Path, session=None, repo: str | None = None, use_demo: bool = False,
@@ -67,11 +88,16 @@ def build(config: dict, out_dir: Path, session=None, repo: str | None = None, us
     payload["carried_over"] = len(combined) - len(fresh)
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    for name in ("app.js", "apply.js", "style.css"):
+    for name in ("app.js", "apply.js", "resume-tools.js", "resume-local.js", "style.css"):
         shutil.copy(WEB_DIR / name, out_dir / name)
+    (out_dir / "static.js").write_text("window.JOB_RADAR_STATIC = true;\n", encoding="utf-8")
     page = (WEB_DIR / "index.html").read_text(encoding="utf-8")
-    assert '<script src="app.js"></script>' in page
-    (out_dir / "index.html").write_text(page.replace('<script src="app.js"></script>', STATIC_FLAG), encoding="utf-8")
+    for tag, replacement in SCRIPTS.items():
+        assert tag in page
+        page = page.replace(tag, replacement)
+    (out_dir / "index.html").write_text(page, encoding="utf-8")
+    (out_dir / "tailor.json").write_text(json.dumps(tailor.browser_settings(), ensure_ascii=False), encoding="utf-8")
+    copy_vendor(out_dir)
     (out_dir / "data.json").write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     (out_dir / ".nojekyll").write_text("", encoding="utf-8")
     shutil.copy(geo.PLACES_FILE, out_dir / "places.json")

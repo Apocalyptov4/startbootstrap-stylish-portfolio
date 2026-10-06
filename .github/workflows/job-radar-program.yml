@@ -59,6 +59,7 @@ jobs:
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:8799/api/state > /dev/null && break; sleep 1; done
           curl -sf http://127.0.0.1:8799/ | grep -q "<title>Job Radar</title>"
           curl -sf http://127.0.0.1:8799/app.js > /dev/null
+          curl -sf http://127.0.0.1:8799/resume-tools.js > /dev/null
           curl -sf http://127.0.0.1:8799/places.json | grep -q '"60614"'
           # The resume features' libraries must be inside the program.
           check=$(curl -sf http://127.0.0.1:8799/api/selfcheck)

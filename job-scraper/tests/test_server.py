@@ -128,11 +128,11 @@ class PageScriptTests(unittest.TestCase):
         import re
         from jobscraper.server import WEB_DIR
 
-        js = "\n".join((WEB_DIR / f).read_text(encoding="utf-8") for f in ("app.js", "apply.js"))
+        js = "\n".join((WEB_DIR / f).read_text(encoding="utf-8") for f in ("app.js", "apply.js", "resume-local.js"))
         handlers = set(re.findall(r'addEventListener\("\w+", (\w+)\)', js))
-        self.assertTrue({"searchHere", "openResumes", "uploadResume", "clearAnthropicKey"} <= handlers, handlers)
+        self.assertTrue({"searchHere", "openResumes", "uploadResume", "printDoc", "clearAnthropicKey"} <= handlers, handlers)
         for name in handlers:
-            self.assertRegex(js, rf"(async )?function {name}\(", name)
+            self.assertRegex(js, rf"(async )?function {name}\(|const {name} = ", name)
 
 
 class DemoTests(unittest.TestCase):

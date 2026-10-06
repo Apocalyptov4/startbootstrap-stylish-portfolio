@@ -34,6 +34,15 @@ jobs:
         working-directory: job-scraper
         run: pip install -r requirements.txt
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # The browser libraries for resumes on the website: the Anthropic SDK and pdf.js (versions pinned in package-lock.json).
+      - name: Build browser libraries
+        working-directory: job-scraper/web-vendor
+        run: npm ci && npm run build
+
       - name: Fetch jobs
         working-directory: job-scraper
         env:

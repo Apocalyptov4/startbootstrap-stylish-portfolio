@@ -1,8 +1,11 @@
-"""Applying for a job: your stored resumes, the free match check, and AI tailoring.
+"""Applying for a job in the program: your stored resumes and AI tailoring.
 
 Everything is saved under the app's data folder on this computer:
   resumes/   the files you uploaded, plus their text
   tailored/  each tailored resume + cover letter, linked to the job it was made for
+
+The match check and the Word and printable versions are made in the browser
+(web/resume-tools.js), the same way on the website and in the program.
 """
 
 from __future__ import annotations
@@ -10,17 +13,13 @@ from __future__ import annotations
 import base64
 import binascii
 import json
-import re
 import secrets
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import documents, tailor
-from .match import match
+from . import tailor
 from .resumes import ResumeError, ResumeStore
-
-TAILORED_ID_RE = re.compile(r"^[0-9a-f]{16}$")
 
 
 class ApplyDesk:
@@ -48,7 +47,7 @@ class ApplyDesk:
             self.resumes.add(str(body.get("filename") or ""), data)
         return self.resumes.list()
 
-    # ------------------------------------------------------------ match + tailor
+    # ------------------------------------------------------------ tailoring
 
     def _job_and_posting(self, body: dict) -> tuple[dict, str]:
         if not isinstance(body, dict) or not isinstance(body.get("key"), str):
@@ -58,12 +57,6 @@ class ApplyDesk:
             raise ResumeError("That job isn't in the list any more. Refresh and try again.")
         posting = str(body.get("posting") or "").strip() or job.get("description") or ""
         return job, posting
-
-    def match(self, body: dict) -> dict:
-        job, posting = self._job_and_posting(body)
-        entry, text = self.resumes.text(body.get("resume_id"))
-        tags = job.get("tags") or []
-        return {**match(text, job.get("title", ""), posting, tags), "resume": entry["filename"]}
 
     def tailor(self, body: dict) -> dict:
         job, posting = self._job_and_posting(body)
@@ -86,14 +79,6 @@ class ApplyDesk:
 
     # ------------------------------------------------------------ tailored versions
 
-    def tailored(self, tid: str) -> dict:
-        if not TAILORED_ID_RE.match(tid or ""):
-            raise ResumeError("Unknown tailored resume.")
-        try:
-            return json.loads((self.dir / f"{tid}.json").read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            raise ResumeError("Unknown tailored resume.") from None
-
     def list_tailored(self, job_key: str | None = None) -> list[dict]:
         out = []
         for f in self.dir.glob("*.json"):
@@ -101,31 +86,6 @@ class ApplyDesk:
                 r = json.loads(f.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 continue
-            if job_key and r["job"].get("key") != job_key:
-                continue
-            out.append({k: r[k] for k in ("id", "created_at", "job", "resume_filename", "cost_usd")}
-                       | {"gaps": r["resume"].get("gaps", []), "changes": r["resume"].get("changes", []),
-                          "cover_letter": r["resume"].get("cover_letter", "")})
+            if not job_key or r["job"].get("key") == job_key:
+                out.append(r)
         return sorted(out, key=lambda r: r["created_at"], reverse=True)
-
-    def file_name(self, record: dict, what: str, ext: str) -> str:
-        name = record["resume"].get("name") or "Resume"
-        company = record["job"].get("company") or record["job"].get("title") or ""
-        raw = " - ".join(x for x in (name, what, company) if x)
-        return re.sub(r'[\\/:*?"<>|\r\n]+', "", raw)[:120] + ext
-
-    def document(self, tid: str, kind: str) -> tuple[bytes, str, str]:
-        """(content, content-type, download file name or "") for /tailored/<id>/<kind>."""
-        r = self.tailored(tid)
-        docx_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        if kind == "resume.docx":
-            return documents.resume_docx(r["resume"]), docx_type, self.file_name(r, "Resume", ".docx")
-        if kind == "cover-letter.docx":
-            return documents.cover_letter_docx(r["resume"]), docx_type, self.file_name(r, "Cover Letter", ".docx")
-        if kind in ("resume", "letter"):
-            letter = kind == "letter"
-            page = documents.resume_html(
-                r["resume"], self.file_name(r, "Cover Letter" if letter else "Resume", ""),
-                f"/tailored/{tid}/{'cover-letter' if letter else 'resume'}.docx", letter=letter)
-            return page.encode("utf-8"), "text/html; charset=utf-8", ""
-        raise ResumeError("Unknown document.")

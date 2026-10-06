@@ -1,0 +1,13 @@
+{
+  "name": "job-radar-web-vendor",
+  "private": true,
+  "description": "Libraries the Job Radar website loads in the browser: the Anthropic SDK (resume tailoring) and pdf.js (reading PDF resumes). `npm ci && npm run build` writes them to jobscraper/web/vendor/.",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "0.131.0",
+    "esbuild": "0.28.2",
+    "pdfjs-dist": "6.4.299"
+  }
+}

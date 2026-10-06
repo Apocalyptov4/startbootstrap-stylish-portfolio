@@ -32,6 +32,7 @@ GitHub rebuilds the website every 6 hours with the latest jobs and publishes it 
 * Saved, applied and hidden marks are kept in the browser you set them in. Your phone and your laptop keep separate lists.
 * **New** shows jobs that appeared since your last visit.
 * Anyone with the link can see the job list. Your marks are never uploaded.
+* **My resume** and resume tailoring work on the website too, and your resume stays in your browser. See [Your resume and applying](#your-resume-and-applying).
 
 One-time setup in the repository on GitHub:
 
@@ -71,22 +72,28 @@ To try the app with made-up sample jobs, start it with `python -m jobscraper ui 
 
 ## Your resume and applying
 
-These features are in the program and the source-code version, not the website.
+These work on the website and in the program.
 
-* **My resume** (top right) stores your resume on your computer. Upload a PDF, Word (`.docx`) or text file, or paste the text. You can keep several versions and pick which one is your main resume. Each stored resume has a **Download** link, so you always have the original file ready to attach on a job site.
-* **Match score:** when you click a job, its details show how well your main resume matches it, which of the job's keywords your resume already has, and which are missing. This is free and runs on your computer.
+* **My resume** (top right) keeps your resume. Upload a PDF, Word (`.docx`) or text file, or paste the text. You can keep several versions and pick which one is your main resume. Each stored resume has a **Download** button, so the original file is always ready to attach on a job site.
+* **Match score:** when you click a job, its details show how well your main resume matches it, which of the job's keywords your resume already has, and which are missing. This is free and happens on your own device.
 * **Tailor my resume** uses Claude, Anthropic's AI, to fit your resume to one job and write a matching cover letter. Open the job posting, copy the whole description, paste it into the Tailor window and click **Tailor my resume**.
   * Claude only rewords and reorders what's already on your resume. It doesn't add jobs, skills, licenses or degrees you don't list. If the job asks for something your resume doesn't show, the app lists it separately and warns you not to claim it unless it's true.
-  * You get the tailored resume and cover letter as Word files (named like `Jane Doe - Resume - Acme Health.docx`) and as printable pages. On a printable page, click **Save as PDF / Print** to make a PDF.
+  * You get the tailored resume and cover letter as Word files (named like `Jane Doe - Resume - Acme Health.docx`), or open them and click **Save as PDF / Print** to make a PDF.
   * Each tailored version is saved with the job it was made for, under the job's details, so you can download it again later.
   * Read it over before you send it.
+* **Copy for Claude.ai**, in the same window, is the option without an API key: it copies the same instructions, your resume and the job description, and you paste them into a chat at [claude.ai](https://claude.ai). That uses your Claude plan instead.
 
-Tailoring needs an Anthropic API key, which is separate from a Claude.ai subscription:
+Tailoring inside Job Radar needs an Anthropic API key, which is separate from a Claude.ai plan. Sign in at [console.anthropic.com](https://console.anthropic.com/), add a payment method or credits under **Billing**, and create a key under **API keys**. Then:
 
-1. Sign in at [console.anthropic.com](https://console.anthropic.com/), add a payment method or credits under **Billing**, and create a key under **API keys**.
-2. In Job Radar, open **Settings**, paste the key under **Resume tailoring (AI)** and click **Save & refresh**.
+* **Website:** paste the key in the Tailor window and click **Save key**.
+* **Program:** open **Settings**, paste the key under **Resume tailoring (AI)** and click **Save & refresh**.
 
-Each tailored resume usually costs about 10–30 cents, and the app shows the cost after each one. The key is stored only in the app's settings file on your computer. It's never shown in the page or published to the website.
+Each tailored resume usually costs about 10–30 cents, and the app shows the cost after each one.
+
+Where things are kept:
+
+* **Website:** your resumes, tailored versions and API key stay in the browser you added them in. They're never uploaded to the website or to GitHub, and anyone else opening the website sees nothing of yours. Your phone and your laptop keep separate copies. Keep your original resume file too, because clearing the browser's data removes them. When you tailor, your resume and the job description go from your browser straight to Anthropic.
+* **Program:** in the app's data folder on your computer (below). The key is never shown in the page.
 
 Your settings, the jobs found, your saved, applied and hidden marks, your resumes and tailored versions are stored in the `~/.jobscraper` folder on your computer. Use `--data-dir` to store them somewhere else.
 
@@ -189,6 +196,10 @@ Example cron entry for a daily email digest:
 python -m unittest -v      # offline; all HTTP responses come from tests/fixtures
 ```
 
+If Node.js is installed, this also runs the tests for the browser code in `tests/js` (or run `node --test tests/js/resume_tools.test.js`).
+
+The website also needs two browser libraries, the Anthropic SDK and pdf.js, at the versions pinned in `web-vendor/package-lock.json`. The website build installs them; to build the website yourself, run `npm ci && npm run build` in `web-vendor/` first.
+
 ## Project layout
 
 ```
@@ -196,15 +207,17 @@ jobscraper/
   sources/     one module per kind of site; each yields Job objects
   scraper.py   fetches all sources in parallel, then filters, de-duplicates and sorts
   server.py    the local web app's server and JSON API (standard library only)
-  web/         the app's page: index.html, style.css, app.js, apply.js (no build step)
-  resumes.py   stored resumes and reading text from PDF, Word and text files
-  match.py     the free keyword match score
-  tailor.py    resume tailoring with the Claude API
-  documents.py Word and printable versions of a tailored resume and cover letter
-  applying.py  ties the above together for the app
+  web/         the app's page: index.html, style.css, app.js (no build step)
+    apply.js         My resume, match score and tailoring screens
+    resume-tools.js  match score, reading Word files, and the Word and printable versions
+    resume-local.js  the website's resume storage (in the browser) and its Claude requests
+  resumes.py   the program's stored resumes and reading text from PDF, Word and text files
+  tailor.py    resume tailoring with the Claude API (the program's requests, and the settings the website uses)
+  applying.py  ties the above together for the program
   cli.py       the command-line version
   site.py      builds the static website version
 packaging/     how the one-file program is built (PyInstaller)
+web-vendor/    builds the browser libraries the website loads (Anthropic SDK, pdf.js)
 sources.json   job sites and companies the website covers
 ```
 
