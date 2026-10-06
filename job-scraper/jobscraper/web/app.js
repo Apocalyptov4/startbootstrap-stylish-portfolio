@@ -547,10 +547,12 @@ function renderDetail() {
       <a class="btn primary" href="${esc(safeUrl(j.url))}" target="_blank" rel="noopener noreferrer">${ICONS.ext}Open job posting</a>
       ${actionButtons(j, "btn", true)}
     </div>
+    ${STATIC ? "" : `<div id="applyBox"></div>`}
     <dl class="facts">${facts.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
     ${j.tags?.length ? `<div class="tags">${j.tags.map((t) => `<span class="chip">${esc(t)}</span>`).join("")}</div>` : ""}
     ${j.description ? `<div class="desc">${esc(j.description)}${j.description.length >= 490 ? "…" : ""}</div><small style="color:var(--muted)">Preview only. Open the job posting for the full description.</small>` : ""}
   </div>`;
+  if (!STATIC && typeof renderApply === "function") renderApply(j);  // apply.js
 }
 
 // ---------------------------------------------------------------- settings
@@ -581,7 +583,15 @@ function openSettings(message) {
   }
   $("settingsError").textContent = message || "";
   $("settingsError").hidden = !message;
-  for (const id of ["slugInput", "areaWhere", "areaWhat", "adzunaId", "adzunaKey"]) $(id).value = "";
+  for (const id of ["slugInput", "areaWhere", "areaWhat", "adzunaId", "adzunaKey", "anthropicKey"]) $(id).value = "";
+  state.clearAnthropic = false;
+  const hasAiKey = state.data.config.anthropic?.has_key;
+  $("anthropicStatus").innerHTML = hasAiKey
+    ? `<span class="key-status-ok">✓ Anthropic API key saved.</span> Type a new one below only to replace it.`
+    : `Tailoring your resume to a job uses Claude, Anthropic's AI. Create an API key at
+       <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>
+       (pay as you go: roughly 10–30¢ per tailored resume) and paste it here. It stays on this computer.`;
+  $("clearAnthropicBtn").hidden = !hasAiKey;
   const hasKeys = state.data.config.adzuna?.has_keys;
   $("adzunaStatus").innerHTML = hasKeys
     ? `<span class="key-status-ok">✓ Adzuna codes saved.</span> Type new ones below only if you want to replace them.`
@@ -674,12 +684,19 @@ function addCompany() {
   $("slugInput").focus();
 }
 
+function clearAnthropicKey() {
+  state.clearAnthropic = true;
+  $("anthropicStatus").textContent = "The key will be removed when you press “Save & refresh”.";
+  $("clearAnthropicBtn").hidden = true;
+}
+
 async function saveSettings() {
   try {
     const body = {
       ...state.draftConfig,
       // blank = keep the codes already saved (the page is never sent them)
       adzuna: { app_id: $("adzunaId").value.trim(), app_key: $("adzunaKey").value.trim(), max_pages: state.draftConfig.adzuna?.max_pages },
+      anthropic: { api_key: $("anthropicKey").value.trim(), clear: state.clearAnthropic },
     };
     const cfg = await api("/api/config", body, "PUT");
     state.data.config = cfg;
@@ -721,6 +738,7 @@ function resetFilters() {
 function selectJob(key) {
   state.selected = key;
   render();
+  if (!STATIC && key && typeof onJobSelected === "function") onJobSelected(key);  // apply.js
 }
 
 function toggleSidebar(open) {
@@ -778,7 +796,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && document.activeElement === $("slugInput")) { e.preventDefault(); addCompany(); }
   if (e.key === "Enter" && document.activeElement === $("loc") && !STATIC) { e.preventDefault(); searchHere(); }
   if (e.key === "Enter" && ["areaWhere", "areaWhat"].includes(document.activeElement?.id)) { e.preventDefault(); addArea(); }
-  if (e.key === "Enter" && ["adzunaId", "adzunaKey"].includes(document.activeElement?.id)) e.preventDefault();
+  if (e.key === "Enter" && ["adzunaId", "adzunaKey", "anthropicKey"].includes(document.activeElement?.id)) e.preventDefault();
 });
 
 $("refreshBtn").addEventListener("click", refresh);
@@ -788,6 +806,7 @@ $("resetBtn").addEventListener("click", resetFilters);
 $("moreBtn").addEventListener("click", () => { state.shown += PAGE; render(); });
 $("addCompanyBtn").addEventListener("click", addCompany);
 $("addAreaBtn").addEventListener("click", addArea);
+$("clearAnthropicBtn").addEventListener("click", clearAnthropicKey);
 $("searchBtn").addEventListener("click", searchHere);
 $("settingsForm").addEventListener("submit", (e) => {
   if (e.submitter?.value === "save") { e.preventDefault(); saveSettings(); }

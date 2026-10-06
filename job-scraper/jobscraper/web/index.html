@@ -20,6 +20,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>
         <span class="refresh-label">Refresh</span>
       </button>
+      <button class="btn ghost app-only" id="resumeBtn" title="Your resumes">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6M9 9h2"/></svg>
+        <span class="refresh-label">My resume</span>
+      </button>
       <button class="btn ghost icon-only" id="settingsBtn" aria-label="Settings" title="Settings">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
       </button>
@@ -139,6 +143,15 @@
         </div>
       </div>
 
+      <div class="edit-only ai-settings">
+        <h3>Resume tailoring (AI)</h3>
+        <p class="hint" id="anthropicStatus"></p>
+        <div class="key-row">
+          <input id="anthropicKey" type="password" placeholder="Anthropic API key (sk-ant-…)" autocomplete="off" aria-label="Anthropic API key">
+          <button type="button" class="btn" id="clearAnthropicBtn" hidden>Remove key</button>
+        </div>
+      </div>
+
       <h3>Job sites</h3>
       <div id="boardList" class="board-list"></div>
 
@@ -174,6 +187,41 @@
     </form>
   </dialog>
 
+  <dialog id="resumeDialog" class="modal">
+    <form method="dialog" class="modal-body">
+      <header class="modal-head">
+        <h2>My resume</h2>
+        <button class="btn ghost icon-only" value="close" aria-label="Close">✕</button>
+      </header>
+      <p class="hint">Your resumes are stored only on this computer. The <b>main</b> one is used for match scores and
+        tailoring, and it's the file you download to attach to applications.</p>
+      <ul id="resumeList" class="resume-list"></ul>
+      <h3>Add a resume</h3>
+      <label class="upload">
+        <input type="file" id="resumeFile" accept=".pdf,.docx,.txt,.md">
+        <span class="btn primary">Choose a file…</span>
+        <small>PDF, Word (.docx) or text, up to 5 MB</small>
+      </label>
+      <details class="paste">
+        <summary>Or paste your resume as text</summary>
+        <textarea id="resumeText" rows="8" placeholder="Paste the full text of your resume here"></textarea>
+        <button type="button" class="btn" id="saveResumeTextBtn">Save pasted resume</button>
+      </details>
+      <p class="form-error" id="resumeError" hidden></p>
+    </form>
+  </dialog>
+
+  <dialog id="tailorDialog" class="modal wide">
+    <form method="dialog" class="modal-body" id="tailorForm">
+      <header class="modal-head">
+        <h2 id="tailorTitle">Tailor my resume</h2>
+        <button class="btn ghost icon-only" value="close" aria-label="Close">✕</button>
+      </header>
+      <div id="tailorBody"></div>
+    </form>
+  </dialog>
+
   <script src="app.js"></script>
+  <script src="apply.js"></script>
 </body>
 </html>

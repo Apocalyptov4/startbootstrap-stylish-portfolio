@@ -15,6 +15,7 @@ SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$")
 WHERE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 .,'\-]{0,79}$")
 WHAT_RE = re.compile(r"^[\w .,'&+#/\-]{0,100}$")
 CATEGORY_RE = re.compile(r"^[a-z0-9-]{0,60}$")
+ANTHROPIC_KEY_RE = re.compile(r"^sk-ant-[A-Za-z0-9_\-]{10,300}$")
 KEY_RE = re.compile(r"^[A-Za-z0-9_\-]{1,100}$")
 MAX_AREAS = 10
 
@@ -23,6 +24,7 @@ DEFAULT_CONFIG = {
     "companies": {ats: [] for ats in COMPANY_SOURCES},
     "areas": [{"where": "08088", "miles": 50, "what": ""}],
     "adzuna": {"app_id": "", "app_key": "", "max_pages": 10},
+    "anthropic": {"api_key": ""},
 }
 
 
@@ -95,7 +97,15 @@ def validate_config(cfg: dict, previous: dict | None = None) -> dict:
     except (TypeError, ValueError):
         raise ValueError("max_pages must be a number") from None
 
-    return {"boards": boards, "companies": companies, "areas": areas, "adzuna": adzuna}
+    an_in = cfg.get("anthropic") or {}
+    an_key = str(an_in.get("api_key") or "").strip() or ((previous or {}).get("anthropic") or {}).get("api_key", "")
+    if an_in.get("clear"):
+        an_key = ""
+    if an_key and not ANTHROPIC_KEY_RE.match(an_key):
+        raise ValueError("That doesn't look like an Anthropic API key. It should start with sk-ant-")
+
+    return {"boards": boards, "companies": companies, "areas": areas, "adzuna": adzuna,
+            "anthropic": {"api_key": an_key}}
 
 
 def same_area(a: dict, b: dict) -> bool:
@@ -123,4 +133,5 @@ def public_config(cfg: dict) -> dict:
     az = out.get("adzuna") or {}
     has_keys = bool(az.pop("app_id", "")) & bool(az.pop("app_key", ""))
     out["adzuna"] = {**az, "has_keys": has_keys}
+    out["anthropic"] = {"has_key": bool((out.get("anthropic") or {}).get("api_key"))}
     return out

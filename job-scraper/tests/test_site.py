@@ -18,7 +18,7 @@ class SiteBuildTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / "site"
             payload = site.build(RunTests.config, out, session=FakeSession(), repo="me/repo")
-            self.assertEqual(sorted(p.name for p in out.iterdir()), [".nojekyll", "app.js", "data.json", "index.html", "places.json", "style.css"])
+            self.assertEqual(sorted(p.name for p in out.iterdir()), [".nojekyll", "app.js", "apply.js", "data.json", "index.html", "places.json", "style.css"])
             self.assertIn("window.JOB_RADAR_STATIC = true", (out / "index.html").read_text(encoding="utf-8"))
             data = json.loads((out / "data.json").read_text(encoding="utf-8"))
             self.assertEqual(data, payload)

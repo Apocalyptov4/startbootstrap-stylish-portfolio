@@ -11,6 +11,7 @@ import argparse
 import copy
 import json
 import logging
+import re
 import sys
 import threading
 import webbrowser
@@ -18,14 +19,18 @@ from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 from . import demo, geo
+from .applying import ApplyDesk
 from .categories import CATEGORIES, add_categories
 from .config import DEFAULT_CONFIG, public_config, validate_config, with_area  # noqa: F401 (re-exported)
 from .scraper import Filters, add_coordinates, carry_over, dedupe, run
 from .sources import build_sources
+from .resumes import TYPES as RESUME_TYPES
+from .resumes import ResumeError
 from .state import SeenStore
+from .tailor import TailorError
 
 log = logging.getLogger("jobscraper")
 
@@ -33,10 +38,12 @@ WEB_DIR = Path(__file__).parent / "web"
 STATIC = {
     "/": (WEB_DIR / "index.html", "text/html; charset=utf-8"),
     "/app.js": (WEB_DIR / "app.js", "text/javascript; charset=utf-8"),
+    "/apply.js": (WEB_DIR / "apply.js", "text/javascript; charset=utf-8"),
     "/style.css": (WEB_DIR / "style.css", "text/css; charset=utf-8"),
     "/places.json": (geo.PLACES_FILE, "application/json; charset=utf-8"),
 }
 STATUSES = {"saved", "applied", "hidden"}
+
 FORGET_AFTER_DAYS = 90
 
 
@@ -48,6 +55,7 @@ class Store:
         self.dir.mkdir(parents=True, exist_ok=True)
         self.demo = demo_mode
         self.session = session  # injectable for tests
+        self.desk = ApplyDesk(self.dir, get_api_key=lambda: self.config["anthropic"]["api_key"], find_job=self.find_job)
         self.lock = threading.Lock()
         self.refresh_lock = threading.Lock()
         self.refreshing = False
@@ -84,6 +92,10 @@ class Store:
                 "demo": self.demo,
                 "refreshing": self.refreshing,
             }
+
+    def find_job(self, key: str) -> dict | None:
+        with self.lock:
+            return next((dict(j) for j in (self.cache or {}).get("jobs") or [] if j.get("key") == key), None)
 
     def set_config(self, cfg: dict) -> dict:
         with self.lock:
@@ -206,10 +218,10 @@ class Handler(BaseHTTPRequestHandler):
     def _error(self, status: int, message: str):
         self._json({"error": message}, status)
 
-    def _body(self):
+    def _body(self, limit: int = 1_000_000):
         length = int(self.headers.get("Content-Length") or 0)
-        if length > 1_000_000:
-            raise ValueError("request too large")
+        if length > limit:
+            raise ValueError("That's too large to upload.")
         return json.loads(self.rfile.read(length) or b"null")
 
     def _same_origin(self) -> bool:
@@ -217,10 +229,50 @@ class Handler(BaseHTTPRequestHandler):
         origin = self.headers.get("Origin")
         return origin is None or urlparse(origin).netloc == self.headers.get("Host")
 
+    def _host_ok(self) -> bool:
+        """Answer only requests addressed to this computer, so a website can't reach the app by
+        pointing its own domain name at 127.0.0.1 ("DNS rebinding") and read your resume."""
+        if self.server.server_address[0] not in ("127.0.0.1", "localhost"):
+            return True  # --host 0.0.0.0: the person chose to share it on their network
+        host = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip("[]").lower()
+        return host in ("127.0.0.1", "localhost")
+
+    def _download(self, content: bytes, ctype: str, filename: str):
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(content)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        if filename:
+            ascii_name = filename.encode("ascii", "replace").decode().replace("?", "_").replace('"', "")
+            self.send_header("Content-Disposition",
+                             f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(filename)}")
+        self.end_headers()
+        self.wfile.write(content)
+
     def do_GET(self):
-        path = urlparse(self.path).path
+        if not self._host_ok():
+            return self._error(HTTPStatus.FORBIDDEN, "unknown host")
+        url = urlparse(self.path)
+        path = url.path
+        desk = self.store.desk
         if path == "/api/state":
             return self._json(self.store.state())
+        if path == "/api/selfcheck":
+            return self._json(selfcheck())
+        try:
+            if path == "/api/resumes":
+                return self._json(desk.resumes.list())
+            if m := re.fullmatch(r"/api/resumes/([0-9a-f]{12})/download", path):
+                entry, data = desk.resumes.file(m.group(1))
+                return self._download(data, RESUME_TYPES.get(entry["ext"], "application/octet-stream"), entry["filename"])
+            if path == "/api/tailored":
+                return self._json(desk.list_tailored((parse_qs(url.query).get("key") or [None])[0]))
+            if m := re.fullmatch(r"/tailored/([0-9a-f]{16})(?:/(letter|resume\.docx|cover-letter\.docx))?", path):
+                content, ctype, filename = desk.document(m.group(1), m.group(2) or "resume")
+                return self._download(content, ctype, filename)
+        except ResumeError as e:
+            return self._error(HTTPStatus.NOT_FOUND, str(e))
         if path in STATIC:
             file, ctype = STATIC[path]
             return self._send(200, file.read_bytes(), ctype)
@@ -234,12 +286,22 @@ class Handler(BaseHTTPRequestHandler):
 
     def _write(self, method: str):
         path = urlparse(self.path).path
-        if not self._same_origin():
+        if not self._same_origin() or not self._host_ok():
             return self._error(HTTPStatus.FORBIDDEN, "cross-origin request refused")
         if "application/json" not in (self.headers.get("Content-Type") or ""):
             return self._error(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "expected application/json")
+        desk = self.store.desk
         try:
-            body = self._body()
+            body = self._body(limit=8_000_000 if path == "/api/resumes" else 1_000_000)
+            if method == "POST" and path == "/api/resumes":
+                return self._json(desk.add_resume(body))
+            if m := re.fullmatch(r"/api/resumes/([0-9a-f]{12})/(main|delete)", path):
+                fn = desk.resumes.set_main if m.group(2) == "main" else desk.resumes.delete
+                return self._json(fn(m.group(1)))
+            if method == "POST" and path == "/api/match":
+                return self._json(desk.match(body))
+            if method == "POST" and path == "/api/tailor":
+                return self._json(desk.tailor(body))
             if method == "POST" and path == "/api/refresh":
                 return self._json(self.store.refresh())
             if method == "POST" and path == "/api/search":
@@ -251,9 +313,20 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("expected {key, status}")
                 self.store.set_status(body["key"], body.get("status"))
                 return self._json({"ok": True})
-        except (ValueError, json.JSONDecodeError) as e:
+        except (ValueError, json.JSONDecodeError, TailorError) as e:  # ResumeError is a ValueError
             return self._error(HTTPStatus.BAD_REQUEST, str(e))
         self._error(HTTPStatus.NOT_FOUND, "not found")
+
+
+def selfcheck() -> dict:
+    """Versions of the optional libraries, or why they can't load (used by the packaged-program check)."""
+    out = {}
+    for name in ("anthropic", "pypdf"):
+        try:
+            out[name] = __import__(name).__version__
+        except BaseException as e:  # a broken native dependency can raise a non-Exception panic
+            out[name] = f"unavailable: {type(e).__name__}"
+    return out
 
 
 def make_server(store: Store, host: str = "127.0.0.1", port: int = 8765) -> ThreadingHTTPServer:
