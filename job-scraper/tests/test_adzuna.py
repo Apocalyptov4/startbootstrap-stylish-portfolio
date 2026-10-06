@@ -122,6 +122,9 @@ class CarryOverTests(unittest.TestCase):
             self.assertEqual(payload["carried_over"], 1)
             self.assertEqual(len(payload["jobs"]), 4)
             self.assertTrue(all("uid" not in j for j in payload["jobs"]))
+            summary = site.area_summary(payload)
+            self.assertTrue(summary[0].startswith("area 60614 (10 mi): 4 jobs, 2 on the map"), summary[0])
+            self.assertIn("Healthcare & Nursing 3", summary[1])
 
 
 class KindOfJobTests(unittest.TestCase):

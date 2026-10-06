@@ -78,6 +78,26 @@ def build(config: dict, out_dir: Path, session=None, repo: str | None = None, us
     return payload
 
 
+def area_summary(payload: dict) -> list[str]:
+    """A few lines per search area for the build log: is the data sensible?"""
+    from collections import Counter
+
+    lines = []
+    for area in payload["config"].get("areas") or []:
+        jobs = [j for j in payload["jobs"] if j.get("source") == "adzuna" and j.get("area") == area["where"]]
+        center = geo.lookup(area["where"])
+        placed = [j for j in jobs if j.get("lat") is not None]
+        inside = [j for j in placed if center and geo.miles_between(center.lat, center.lon, j["lat"], j["lon"]) <= area["miles"]]
+        kinds = Counter(CATEGORIES.get(j.get("category") or "", j.get("category") or "?") for j in jobs).most_common(5)
+        lines.append(f"area {area['where']} ({area['miles']} mi): {len(jobs)} jobs, {len(placed)} on the map, "
+                     f"{len(inside)} within {area['miles']} mi")
+        lines.append("  kinds: " + ", ".join(f"{k} {n}" for k, n in kinds))
+        for j in jobs[:3]:
+            lines.append(f"  e.g. {(j.get('title') or '')[:60]} | {(j.get('company') or '')[:30]} | "
+                         f"{j.get('location') or '?'} | {j.get('salary') or '-'}")
+    return lines
+
+
 def _slim(job: dict) -> dict:
     """Drop what the page doesn't use, to keep data.json small."""
     for field in ("uid", "source_id"):
@@ -129,6 +149,8 @@ def main(argv=None) -> int:
           f" ({payload['carried_over']} kept from earlier runs)", file=sys.stderr)
     for label, err in payload["errors"].items():
         print(f"  ! {label}: {err}", file=sys.stderr)
+    for line in area_summary(payload):
+        print(line, file=sys.stderr)
     if not payload["jobs"]:
         # Don't replace a working website with an empty one.
         print("No jobs at all, so treating this as a failure.", file=sys.stderr)
