@@ -15,8 +15,8 @@ const TABS = [
   ["all", "All"], ["new", "New"], ["saved", "Saved"], ["applied", "Applied"], ["hidden", "Hidden"],
 ];
 const PAGE = 100;
-// The website build (jobscraper/site.py) sets this: jobs come from data.json and
-// saved/applied/hidden marks live in this browser instead of on a server.
+// The website build (jobscraper/site.py) sets this: jobs come from data.json, and
+// saved/applied/hidden marks and resumes live in this browser instead of on a server.
 const STATIC = !!window.JOB_RADAR_STATIC;
 const ICONS = {
   star: '<svg viewBox="0 0 24 24"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg>',
@@ -547,12 +547,12 @@ function renderDetail() {
       <a class="btn primary" href="${esc(safeUrl(j.url))}" target="_blank" rel="noopener noreferrer">${ICONS.ext}Open job posting</a>
       ${actionButtons(j, "btn", true)}
     </div>
-    ${STATIC ? "" : `<div id="applyBox"></div>`}
+    <div id="applyBox"></div>
     <dl class="facts">${facts.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
     ${j.tags?.length ? `<div class="tags">${j.tags.map((t) => `<span class="chip">${esc(t)}</span>`).join("")}</div>` : ""}
     ${j.description ? `<div class="desc">${esc(j.description)}${j.description.length >= 490 ? "…" : ""}</div><small style="color:var(--muted)">Preview only. Open the job posting for the full description.</small>` : ""}
   </div>`;
-  if (!STATIC && typeof renderApply === "function") renderApply(j);  // apply.js
+  renderApply(j);  // apply.js
 }
 
 // ---------------------------------------------------------------- settings
@@ -738,7 +738,7 @@ function resetFilters() {
 function selectJob(key) {
   state.selected = key;
   render();
-  if (!STATIC && key && typeof onJobSelected === "function") onJobSelected(key);  // apply.js
+  onJobSelected(key);  // apply.js
 }
 
 function toggleSidebar(open) {

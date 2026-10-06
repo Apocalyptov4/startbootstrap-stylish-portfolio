@@ -30,7 +30,7 @@ from .sources import build_sources
 from .resumes import TYPES as RESUME_TYPES
 from .resumes import ResumeError
 from .state import SeenStore
-from .tailor import TailorError
+from .tailor import TailorError, browser_settings
 
 log = logging.getLogger("jobscraper")
 
@@ -39,6 +39,7 @@ STATIC = {
     "/": (WEB_DIR / "index.html", "text/html; charset=utf-8"),
     "/app.js": (WEB_DIR / "app.js", "text/javascript; charset=utf-8"),
     "/apply.js": (WEB_DIR / "apply.js", "text/javascript; charset=utf-8"),
+    "/resume-tools.js": (WEB_DIR / "resume-tools.js", "text/javascript; charset=utf-8"),
     "/style.css": (WEB_DIR / "style.css", "text/css; charset=utf-8"),
     "/places.json": (geo.PLACES_FILE, "application/json; charset=utf-8"),
 }
@@ -266,13 +267,14 @@ class Handler(BaseHTTPRequestHandler):
             if m := re.fullmatch(r"/api/resumes/([0-9a-f]{12})/download", path):
                 entry, data = desk.resumes.file(m.group(1))
                 return self._download(data, RESUME_TYPES.get(entry["ext"], "application/octet-stream"), entry["filename"])
+            if m := re.fullmatch(r"/api/resumes/([0-9a-f]{12})/text", path):
+                return self._json({"text": desk.resumes.text(m.group(1))[1]})
             if path == "/api/tailored":
                 return self._json(desk.list_tailored((parse_qs(url.query).get("key") or [None])[0]))
-            if m := re.fullmatch(r"/tailored/([0-9a-f]{16})(?:/(letter|resume\.docx|cover-letter\.docx))?", path):
-                content, ctype, filename = desk.document(m.group(1), m.group(2) or "resume")
-                return self._download(content, ctype, filename)
         except ResumeError as e:
             return self._error(HTTPStatus.NOT_FOUND, str(e))
+        if path == "/tailor.json":
+            return self._json(browser_settings())
         if path in STATIC:
             file, ctype = STATIC[path]
             return self._send(200, file.read_bytes(), ctype)
@@ -298,8 +300,6 @@ class Handler(BaseHTTPRequestHandler):
             if m := re.fullmatch(r"/api/resumes/([0-9a-f]{12})/(main|delete)", path):
                 fn = desk.resumes.set_main if m.group(2) == "main" else desk.resumes.delete
                 return self._json(fn(m.group(1)))
-            if method == "POST" and path == "/api/match":
-                return self._json(desk.match(body))
             if method == "POST" and path == "/api/tailor":
                 return self._json(desk.tailor(body))
             if method == "POST" and path == "/api/refresh":

@@ -1,18 +1,16 @@
-"""Tests for resumes, the match check, AI tailoring (with a fake Claude) and the documents made from it."""
+"""Tests for stored resumes and AI tailoring with a fake Claude. The match check and the Word and printable
+versions are made in the browser; their tests are in tests/js (run by test_browser_code.py)."""
 
 import base64
-import io
 import json
 import tempfile
 import unittest
 import urllib.error
 import urllib.request
-import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 
-from jobscraper import documents, tailor
-from jobscraper.match import match
+from jobscraper import tailor
 from jobscraper.resumes import ResumeError, ResumeStore, docx_text, extract_text
 from jobscraper.server import Store
 from jobscraper.tailor import TailorError
@@ -58,13 +56,16 @@ def make_pdf(text: str) -> bytes:
     return out
 
 
+FIXTURE_DOCX = (Path(__file__).parent / "fixtures" / "resume.docx").read_bytes()
+
+
 class ExtractTests(unittest.TestCase):
     def test_text_word_and_pdf(self):
         self.assertIn("Acme Logistics", extract_text("cv.txt", RESUME.encode()))
-        docx = documents.resume_docx(TAILORED)
-        text = extract_text("cv.docx", docx)
-        self.assertIn("Picked and packed orders <fast>", text)
-        self.assertIn("•\tOperated forklifts", text.splitlines())  # no stray tab from tab-stop settings
+        lines = extract_text("cv.docx", FIXTURE_DOCX).splitlines()
+        self.assertEqual(sum("555-0100" in line for line in lines), 1)  # a text box comes once
+        self.assertIn("Warehouse Associate\t2021 & 2024", lines)  # no stray tab from tab-stop settings
+        self.assertIn("•\tPicked <fast> orders", lines)
         pdf_text = extract_text("cv.pdf", make_pdf("Jane Doe Warehouse Associate Acme Logistics forklift OSHA"))
         self.assertIn("Acme Logistics", pdf_text)
 
@@ -98,19 +99,6 @@ class ResumeStoreTests(unittest.TestCase):
                 s.text("../../etc")
             with self.assertRaisesRegex(ResumeError, "5 MB"):
                 s.add("big.txt", b"x" * (6 * 1024 * 1024))
-
-
-class MatchTests(unittest.TestCase):
-    def test_score_and_aliases(self):
-        m = match("RN with 3 years in med-surg. BLS certified. Epic EMR charting, patient assessment.",
-                  "Registered Nurse - Med/Surg",
-                  "Seeking a Registered Nurse (RN) for our medical-surgical unit. BLS and Epic EHR required. Patient assessment.",
-                  ["Healthcare & Nursing Jobs", "Full Time"])
-        self.assertIn("registered nurse", m["found"])      # "RN" counts
-        self.assertIn("med/surg", m["found"])              # "med-surg" counts
-        self.assertNotIn("healthcare", m["found"] + m["missing"])  # category names are ignored
-        self.assertGreaterEqual(m["score"], 60)
-        self.assertEqual(m["checked"], len(m["found"]) + len(m["missing"]))
 
 
 class FakeClient:
@@ -192,25 +180,6 @@ class TailorTests(unittest.TestCase):
             tailor.tailor(RESUME, self.job, "Pick orders.", "", client=client(denied))
 
 
-class DocumentTests(unittest.TestCase):
-    def test_word_files_are_valid_and_escaped(self):
-        resume, letter = documents.resume_docx(TAILORED), documents.cover_letter_docx(TAILORED)
-        for data in (resume, letter):
-            with zipfile.ZipFile(io.BytesIO(data)) as z:
-                self.assertEqual(sorted(z.namelist()), ["[Content_Types].xml", "_rels/.rels", "word/_rels/document.xml.rels",
-                                                        "word/document.xml", "word/styles.xml"])
-        with zipfile.ZipFile(io.BytesIO(resume)) as z:
-            self.assertIn("&lt;fast&gt;", z.read("word/document.xml").decode())
-        self.assertIn("I would like to apply.", docx_text(letter))
-
-    def test_printable_page(self):
-        page = documents.resume_html(TAILORED, "Jane Doe - Resume - Shop", "/t/x.docx")
-        self.assertIn("&lt;fast&gt;", page)
-        self.assertIn("window.print()", page)
-        letter = documents.resume_html(TAILORED, "Letter", "/t/x.docx", letter=True)
-        self.assertIn("<p>I would like to apply.</p>", letter)
-
-
 class ApplyRouteTests(unittest.TestCase):
     """The app's HTTP routes, with a fake Claude plugged in."""
 
@@ -246,19 +215,18 @@ class ApplyRouteTests(unittest.TestCase):
         except urllib.error.HTTPError as e:
             return e.code, e.headers, json.loads(e.read())
 
-    def test_upload_match_tailor_download(self):
-        docx = documents.resume_docx({**TAILORED, "summary": RESUME})
-        status, _, listing = self.call("/api/resumes", {"filename": "Jane Doe.docx", "data": base64.b64encode(docx).decode()})
+    def test_upload_tailor_download(self):
+        status, _, listing = self.call("/api/resumes", {"filename": "Jane Doe.docx", "data": base64.b64encode(FIXTURE_DOCX).decode()})
         self.assertEqual(status, 200)
         rid = listing["main"]
         status, headers, original = self.call(f"/api/resumes/{rid}/download")
-        self.assertEqual(original, docx)
+        self.assertEqual(original, FIXTURE_DOCX)
         self.assertIn("Jane Doe.docx", headers["Content-Disposition"])
+        _, _, text = self.call(f"/api/resumes/{rid}/text")
+        self.assertIn("Forklift certified", text["text"])
+        self.assertEqual(self.call("/api/resumes/0123456789ab/text")[0], 404)
 
         job = next(j for j in self.store.state()["jobs"] if j["title"] == "Frontend Developer")
-        status, _, m = self.call("/api/match", {"key": job["key"]})
-        self.assertEqual(status, 200)
-        self.assertIn("score", m)
 
         status, _, err = self.call("/api/tailor", {"key": job["key"], "posting": "too short"})
         self.assertEqual(status, 400)
@@ -271,12 +239,11 @@ class ApplyRouteTests(unittest.TestCase):
 
         _, _, versions = self.call(f"/api/tailored?key={urllib.request.quote(job['key'])}")
         self.assertEqual([v["id"] for v in versions], [rec["id"]])
-        _, headers, page = self.call(f"/tailored/{rec['id']}")
-        self.assertIn(b"Jane Doe", page)
-        _, headers, word = self.call(f"/tailored/{rec['id']}/resume.docx")
-        self.assertIn("Jane Doe - Resume - Globex.docx", headers["Content-Disposition"])
-        self.assertIn("Operated forklifts", docx_text(word))
-        self.assertEqual(self.call("/tailored/0123456789abcdef")[0], 404)
+        self.assertEqual(versions[0]["resume"], TAILORED)  # the browser makes the Word and PDF versions from this
+
+        _, _, settings = self.call("/tailor.json")
+        self.assertEqual(settings["request"]["model"], tailor.MODEL)
+        self.assertEqual(settings["system"], tailor.SYSTEM)
 
     def test_key_never_reaches_the_page_and_other_hosts_are_refused(self):
         _, _, state = self.call("/api/state")

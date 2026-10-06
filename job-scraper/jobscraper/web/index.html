@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Only this site's own scripts may run, and the page may only talk to this site and to Anthropic (resume tailoring on the website). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.anthropic.com; worker-src 'self'; object-src 'none'; base-uri 'none'">
   <title>Job Radar</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Cpath d='M12 12l6-6'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
@@ -20,7 +22,7 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>
         <span class="refresh-label">Refresh</span>
       </button>
-      <button class="btn ghost app-only" id="resumeBtn" title="Your resumes">
+      <button class="btn ghost" id="resumeBtn" title="Your resumes">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6M9 9h2"/></svg>
         <span class="refresh-label">My resume</span>
       </button>
@@ -193,7 +195,7 @@
         <h2>My resume</h2>
         <button class="btn ghost icon-only" value="close" aria-label="Close">✕</button>
       </header>
-      <p class="hint">Your resumes are stored only on this computer. The <b>main</b> one is used for match scores and
+      <p class="hint"><span id="resumeHint"></span> The <b>main</b> one is used for match scores and
         tailoring, and it's the file you download to attach to applications.</p>
       <ul id="resumeList" class="resume-list"></ul>
       <h3>Add a resume</h3>
@@ -221,7 +223,25 @@
     </form>
   </dialog>
 
+  <dialog id="docDialog" class="modal wide">
+    <form method="dialog" class="modal-body">
+      <header class="modal-head">
+        <h2 id="docTitle">Resume</h2>
+        <button class="btn ghost icon-only" value="close" aria-label="Close">✕</button>
+      </header>
+      <div class="row">
+        <button type="button" class="btn primary" id="docPrintBtn">Save as PDF / Print</button>
+        <button type="button" class="btn" id="docWordBtn">Download Word file</button>
+      </div>
+      <p class="hint">In the print window, choose <b>Save as PDF</b> as the printer. On an iPhone, tap <b>Print</b>,
+        then the share button, then <b>Save to Files</b>.</p>
+      <div class="paper-wrap"><div class="paper" id="docPaper"></div></div>
+    </form>
+  </dialog>
+  <div id="printArea" class="paper" aria-hidden="true"></div>
+
   <script src="app.js"></script>
+  <script src="resume-tools.js"></script>
   <script src="apply.js"></script>
 </body>
 </html>

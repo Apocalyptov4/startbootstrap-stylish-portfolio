@@ -17,9 +17,16 @@ class SiteBuildTests(unittest.TestCase):
     def test_build_writes_page_and_data(self):
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / "site"
-            payload = site.build(RunTests.config, out, session=FakeSession(), repo="me/repo")
-            self.assertEqual(sorted(p.name for p in out.iterdir()), [".nojekyll", "app.js", "apply.js", "data.json", "index.html", "places.json", "style.css"])
-            self.assertIn("window.JOB_RADAR_STATIC = true", (out / "index.html").read_text(encoding="utf-8"))
+            with mock.patch.object(site, "VENDOR_FILES", ("not-built.mjs",)), self.assertLogs("jobscraper", "WARNING"):
+                payload = site.build(RunTests.config, out, session=FakeSession(), repo="me/repo")
+            self.assertEqual(sorted(p.name for p in out.iterdir()), [
+                ".nojekyll", "app.js", "apply.js", "data.json", "index.html", "places.json", "resume-local.js",
+                "resume-tools.js", "static.js", "style.css", "tailor.json"])
+            page = (out / "index.html").read_text(encoding="utf-8")
+            self.assertLess(page.index('src="static.js"'), page.index('src="app.js"'))
+            self.assertLess(page.index('src="resume-local.js"'), page.index('src="apply.js"'))
+            self.assertIn("window.JOB_RADAR_STATIC = true", (out / "static.js").read_text(encoding="utf-8"))
+            self.assertEqual(json.loads((out / "tailor.json").read_text(encoding="utf-8"))["request"]["model"], "claude-opus-5-5")
             data = json.loads((out / "data.json").read_text(encoding="utf-8"))
             self.assertEqual(data, payload)
             self.assertTrue(data["static"])

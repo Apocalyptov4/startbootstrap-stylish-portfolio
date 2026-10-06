@@ -260,8 +260,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
   .add-company input { flex: 1 1 100%; order: 3; }
 }
 
-/* ---------- resume + tailoring (app only) ---------- */
-.static .app-only { display: none !important; }
+/* ---------- resume + tailoring ---------- */
 .modal.wide { width: min(820px, calc(100vw - 32px)); }
 .resume-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .resume-list li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
@@ -287,7 +286,10 @@ textarea { width: 100%; font: inherit; padding: 10px; border: 1px solid var(--li
 .kw .chip.no { background: color-mix(in srgb, var(--danger) 12%, var(--surface)); color: var(--danger); }
 .muted { color: var(--muted); font-size: 13px; }
 .versions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
-.versions a { color: var(--accent); }
+.versions a, .link { color: var(--accent); }
+.link { border: 0; background: none; padding: 0; font: inherit; cursor: pointer; text-decoration: underline; }
+.tailor-form .row, .tailor-result .row, .callout .row, #docDialog .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.key-row input { flex: 1 1 220px; }
 
 .tailor-form { display: flex; flex-direction: column; gap: 10px; }
 .tailor-form label > span { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
@@ -298,3 +300,26 @@ textarea { width: 100%; font: inherit; padding: 10px; border: 1px solid var(--li
 .callout ul { margin: 0; padding-left: 18px; }
 .letter-preview { white-space: pre-line; background: var(--surface-2); border-radius: 8px; padding: 12px 14px; max-height: 240px; overflow: auto; font-size: 13.5px; }
 .spinner { width: 18px; height: 18px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .9s linear infinite; display: inline-block; vertical-align: -4px; margin-right: 6px; }
+
+/* the tailored resume or cover letter, on screen and when printed (Save as PDF) */
+.paper-wrap { background: #e9ecef; border-radius: 10px; padding: 16px; overflow: auto; }
+.paper { background: #fff; color: #111; max-width: 8.5in; margin: 0 auto; padding: 0.6in 0.7in; box-shadow: 0 2px 12px rgb(0 0 0 / 15%);
+  font: 10.5pt/1.4 Calibri, Carlito, "Segoe UI", Arial, sans-serif; }
+.paper h1 { font-size: 20pt; margin: 0; }
+.paper .headline { font-size: 12pt; margin: 2px 0 0; }
+.paper .contact { font-size: 10pt; color: #333; margin: 4px 0 10px; }
+.paper h2 { font-size: 12pt; margin: 14px 0 4px; padding-bottom: 2px; border-bottom: 1px solid #888; text-transform: uppercase; letter-spacing: .04em; }
+.paper .role { font-weight: 700; margin-top: 8px; }
+.paper .meta { color: #333; font-size: 10pt; }
+.paper ul { margin: 2px 0 0; padding-left: 18px; }
+.paper li { margin: 1px 0; }
+.paper p { margin: 0 0 6px; }
+.paper .letter p { margin: 0 0 12px; font-size: 11pt; }
+#printArea { display: none; }
+@media (max-width: 760px) { .paper { padding: 0.35in 0.3in; } .paper-wrap { padding: 8px; } }
+@media print {
+  body.printing { background: #fff; }
+  body.printing > :not(#printArea) { display: none !important; }
+  body.printing #printArea { display: block; box-shadow: none; padding: 0; max-width: none; }
+  @page { size: letter; margin: 0.6in 0.7in; }
+}

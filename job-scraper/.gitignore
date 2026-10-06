@@ -2,3 +2,6 @@
 __pycache__/
 *.pyc
 jobs.*
+
+# Built by web-vendor (npm run build)
+jobscraper/web/vendor/

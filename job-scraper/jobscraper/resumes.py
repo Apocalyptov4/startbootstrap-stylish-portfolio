@@ -25,6 +25,7 @@ TYPES = {
     ".md": "text/plain; charset=utf-8",
 }
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+MC = "{http://schemas.openxmlformats.org/markup-compatibility/2006}"
 
 
 class ResumeError(ValueError):
@@ -67,24 +68,34 @@ def _pdf_text(data: bytes) -> str:
 
 
 def docx_text(data: bytes) -> str:
-    """Paragraph text from a .docx (Word) file, using only the standard library."""
+    """The text of a Word (.docx) file, one line per paragraph, using only the standard library.
+
+    Text boxes come once (their old-Word "fallback" copy is skipped), and tab-stop settings
+    (<w:tabs><w:tab/>) aren't mistaken for tabs. Same rules as docxText in web/resume-tools.js.
+    """
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as z:
             root = ElementTree.fromstring(z.read("word/document.xml"))
     except (zipfile.BadZipFile, KeyError, ElementTree.ParseError):
         raise ResumeError("That Word file couldn't be opened.") from None
-    lines = []
-    for p in root.iter(f"{W}p"):
-        parts = []
-        for el in (el for r in p.iter(f"{W}r") for el in r):  # run content only, not tab-stop settings
-            if el.tag == f"{W}t" and el.text:
-                parts.append(el.text)
-            elif el.tag == f"{W}tab":
-                parts.append("\t")
-            elif el.tag in (f"{W}br", f"{W}cr"):
-                parts.append("\n")
-        lines.append("".join(parts))
-    return "\n".join(lines)
+    out = []
+
+    def walk(el, in_tabs=False):
+        if el.tag == f"{MC}Fallback":
+            return
+        if el.tag == f"{W}t":
+            out.append(el.text or "")
+        elif el.tag == f"{W}tab" and not in_tabs:
+            out.append("\t")
+        elif el.tag in (f"{W}br", f"{W}cr"):
+            out.append("\n")
+        for child in el:
+            walk(child, in_tabs or el.tag == f"{W}tabs")
+        if el.tag == f"{W}p":
+            out.append("\n")
+
+    walk(root)
+    return "".join(out)
 
 
 class ResumeStore:

@@ -1,7 +1,9 @@
 """Tailor a resume to one job with Claude, using only what the resume already says.
 
-Needs an Anthropic API key (console.anthropic.com), saved in Settings. One
-tailoring costs roughly 10-30 cents; the exact cost of each one is shown.
+Needs an Anthropic API key (console.anthropic.com). One tailoring costs roughly
+10-30 cents; the exact cost of each one is shown. The program calls Claude from here,
+with the key saved in Settings. The website calls Claude from the visitor's browser with
+their own key (web/resume-local.js), using the same settings from browser_settings().
 """
 
 from __future__ import annotations
@@ -60,6 +62,22 @@ SCHEMA = _obj({
 })
 
 
+REQUEST = {
+    "model": MODEL,
+    "max_tokens": 16000,
+    # If a safety check declines, Anthropic retries on its recommended fallback model.
+    "betas": ["server-side-fallback-2026-07-01"],
+    "fallbacks": "default",
+    "output_config": {"effort": "medium", "format": {"type": "json_schema", "schema": SCHEMA}},
+}
+
+
+def browser_settings() -> dict:
+    """Everything the website's browser code needs to make the same request (served as tailor.json)."""
+    return {"request": REQUEST, "system": SYSTEM, "prices": PRICE_PER_MTOK,
+            "max_resume_chars": MAX_RESUME_CHARS, "max_posting_chars": MAX_POSTING_CHARS}
+
+
 class TailorError(RuntimeError):
     """Something the person can act on: missing key, out of credit, Claude declined, ..."""
 
@@ -82,12 +100,7 @@ def tailor(resume_text: str, job: dict, posting: str, api_key: str, client=None)
         client = anthropic.Anthropic(api_key=api_key, timeout=300.0, max_retries=2)
     try:
         response = client.beta.messages.create(
-            model=MODEL,
-            max_tokens=16000,
-            # If a safety check declines, Anthropic retries on its recommended fallback model.
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",
-            output_config={"effort": "medium", "format": {"type": "json_schema", "schema": SCHEMA}},
+            **REQUEST,
             system=SYSTEM,
             messages=[{"role": "user", "content": _prompt(resume_text, job, posting)}],
         )
