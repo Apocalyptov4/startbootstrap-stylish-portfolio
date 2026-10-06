@@ -1,0 +1,4 @@
+.jobscraper-seen.json
+__pycache__/
+*.pyc
+jobs.*

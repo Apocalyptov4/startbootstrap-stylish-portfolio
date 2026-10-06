@@ -1,0 +1,13 @@
+{
+  "boards": {
+    "remoteok": true,
+    "remotive": true,
+    "arbeitnow": true,
+    "hackernews": true
+  },
+  "companies": {
+    "greenhouse": ["stripe", "airbnb", "figma", "discord", "cloudflare", "datadog", "dropbox", "gitlab", "duolingo", "reddit"],
+    "lever": ["palantir", "spotify"],
+    "ashby": ["openai", "ramp", "linear", "notion"]
+  }
+}

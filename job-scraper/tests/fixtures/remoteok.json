@@ -1,0 +1,33 @@
+[
+ {
+  "legal": "API Terms of Service..."
+ },
+ {
+  "id": "9001",
+  "epoch": 1759050000,
+  "date": "2026-09-28T09:00:00+00:00",
+  "company": "Acme",
+  "position": "Senior Backend Engineer (Python)",
+  "tags": [
+   "python",
+   "backend"
+  ],
+  "location": "Worldwide",
+  "salary_min": 120000,
+  "salary_max": 160000,
+  "url": "https://remoteok.com/remote-jobs/9001",
+  "description": "<p>Python</p>"
+ },
+ {
+  "id": "9002",
+  "epoch": 1759050000,
+  "company": "Hooli",
+  "position": "Go Developer",
+  "tags": [
+   "golang"
+  ],
+  "location": "",
+  "url": "https://remoteok.com/remote-jobs/9002",
+  "description": ""
+ }
+]

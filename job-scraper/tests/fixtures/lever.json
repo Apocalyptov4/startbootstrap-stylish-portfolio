@@ -1,0 +1,34 @@
+[
+ {
+  "id": "abc-1",
+  "text": "Frontend Developer",
+  "hostedUrl": "https://jobs.lever.co/globex/abc-1",
+  "categories": {
+   "location": "Berlin, Germany",
+   "team": "Web",
+   "commitment": "Full-time"
+  },
+  "createdAt": 1759000000000,
+  "workplaceType": "hybrid",
+  "descriptionPlain": "React, TypeScript",
+  "salaryRange": {
+   "currency": "EUR",
+   "interval": "per-year-salary",
+   "min": 70000,
+   "max": 90000
+  }
+ },
+ {
+  "id": "abc-2",
+  "text": "Staff SRE",
+  "hostedUrl": "https://jobs.lever.co/globex/abc-2",
+  "categories": {
+   "allLocations": [
+    "Anywhere"
+   ]
+  },
+  "createdAt": 1758000000000,
+  "workplaceType": "remote",
+  "descriptionPlain": "Kubernetes"
+ }
+]

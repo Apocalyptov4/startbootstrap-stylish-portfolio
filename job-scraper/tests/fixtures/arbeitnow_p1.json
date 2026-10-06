@@ -1,0 +1,23 @@
+{
+ "data": [
+  {
+   "slug": "dev-berlin-1",
+   "company_name": "Stark",
+   "title": "Java Developer",
+   "description": "<p>Spring</p>",
+   "remote": false,
+   "url": "https://www.arbeitnow.com/jobs/dev-berlin-1",
+   "tags": [
+    "Java"
+   ],
+   "job_types": [
+    "full time"
+   ],
+   "location": "Berlin",
+   "created_at": 1759000000
+  }
+ ],
+ "links": {
+  "next": "https://www.arbeitnow.com/api/job-board-api?page=2"
+ }
+}

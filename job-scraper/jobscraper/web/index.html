@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Job Radar</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Cpath d='M12 12l6-6'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" class="brand-mark" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 12l6-6"/></svg>
+      <span>Job Radar</span>
+    </div>
+    <div class="status" id="status" aria-live="polite"></div>
+    <div class="top-actions">
+      <button class="btn ghost only-mobile" id="filtersBtn" aria-controls="sidebar" aria-expanded="false">Filters</button>
+      <button class="btn primary" id="refreshBtn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>
+        <span class="refresh-label">Refresh</span>
+      </button>
+      <button class="btn ghost icon-only" id="settingsBtn" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="banner" id="banner" hidden></div>
+
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <label class="field">
+        <span>Search</span>
+        <input type="search" id="q" placeholder="e.g. python backend" autocomplete="off">
+        <small>All words must match. Press <kbd>/</kbd> to jump here.</small>
+      </label>
+      <label class="field">
+        <span>Location</span>
+        <input type="search" id="loc" placeholder="e.g. Berlin, London" autocomplete="off">
+        <small>Separate several with commas.</small>
+      </label>
+      <label class="field">
+        <span>Hide titles containing</span>
+        <input type="search" id="exclude" placeholder="e.g. senior, staff" autocomplete="off">
+      </label>
+      <label class="switch">
+        <input type="checkbox" id="remote">
+        <span class="track" aria-hidden="true"></span>
+        <span>Remote only</span>
+      </label>
+      <label class="field">
+        <span>Posted</span>
+        <select id="days">
+          <option value="">Any time</option>
+          <option value="1">Last 24 hours</option>
+          <option value="3">Last 3 days</option>
+          <option value="7">Last week</option>
+          <option value="30">Last month</option>
+        </select>
+      </label>
+      <fieldset class="field">
+        <legend>Sites</legend>
+        <div id="sourceList" class="source-list"></div>
+      </fieldset>
+      <button class="btn ghost small" id="resetBtn">Clear filters</button>
+    </aside>
+
+    <main class="results">
+      <nav class="tabs" id="tabs" role="tablist"></nav>
+      <div class="list-head">
+        <span id="count"></span>
+        <label class="sort">Sort
+          <select id="sort">
+            <option value="newest">Newest first</option>
+            <option value="company">Company A–Z</option>
+            <option value="title">Title A–Z</option>
+          </select>
+        </label>
+      </div>
+      <ul class="job-list" id="list"></ul>
+      <button class="btn ghost more" id="moreBtn" hidden>Show more</button>
+      <div class="empty" id="empty" hidden></div>
+    </main>
+
+    <section class="detail" id="detail" aria-label="Job details"></section>
+  </div>
+
+  <dialog id="settings" class="modal">
+    <form method="dialog" class="modal-body" id="settingsForm">
+      <header class="modal-head">
+        <h2>Settings</h2>
+        <button class="btn ghost icon-only" value="cancel" aria-label="Close">✕</button>
+      </header>
+
+      <h3>Job sites</h3>
+      <div id="boardList" class="board-list"></div>
+
+      <p class="static-note">
+        On the website, these settings are stored in the file <code>job-scraper/sources.json</code> in your
+        GitHub repository. Edit that file to add companies or switch sites on and off. The website picks up
+        the change at its next automatic update.
+      </p>
+
+      <h3>Companies to follow</h3>
+      <p class="hint edit-only">
+        Paste a company's careers page link (e.g. <code>jobs.lever.co/spotify</code>,
+        <code>boards.greenhouse.io/stripe</code> or <code>jobs.ashbyhq.com/notion</code>),
+        or pick the system and type its name as it appears in that link.
+      </p>
+      <div class="add-company edit-only">
+        <select id="atsSelect" aria-label="Careers system">
+          <option value="greenhouse">Greenhouse</option>
+          <option value="lever">Lever</option>
+          <option value="ashby">Ashby</option>
+        </select>
+        <input id="slugInput" placeholder="company name or careers link" autocomplete="off">
+        <button type="button" class="btn" id="addCompanyBtn">Add</button>
+      </div>
+      <p class="form-error" id="settingsError" hidden></p>
+      <ul id="companyList" class="company-list"></ul>
+
+      <footer class="modal-foot">
+        <button class="btn ghost" value="cancel">Cancel</button>
+        <button class="btn primary edit-only" value="save" id="saveSettingsBtn">Save &amp; refresh</button>
+        <a class="btn primary" id="editOnGithub" target="_blank" rel="noopener" hidden>Edit on GitHub</a>
+      </footer>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+# Builds the double-click Job Radar program for Windows, macOS and Linux and
+# publishes it on the "job-radar" release page of this repository.
+name: Job Radar program
+
+on:
+  push:
+    branches: [master, claude/job-openings-scraper-yttljs]
+    paths: ["job-scraper/**", ".github/workflows/job-radar-program.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: job-radar-program-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            asset: JobRadar-Windows.zip
+          - os: macos-latest
+            asset: JobRadar-macOS.zip
+          - os: ubuntu-latest
+            asset: JobRadar-Linux.tar.gz
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: job-scraper
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Run tests
+        # Fail on any file opened without an explicit encoding (Windows doesn't default to UTF-8).
+        run: python -X warn_default_encoding -W error::EncodingWarning -m unittest -v
+
+      - name: Build program
+        run: pyinstaller --noconfirm packaging/job-radar.spec
+
+      - name: Check the built program starts and serves the app
+        run: |
+          exe=dist/JobRadar
+          [ "$RUNNER_OS" = Windows ] && exe=dist/JobRadar.exe
+          "$exe" --demo --no-browser --port 8799 --data-dir "$RUNNER_TEMP/jobradar" &
+          pid=$!
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8799/api/state > /dev/null && break; sleep 1; done
+          curl -sf http://127.0.0.1:8799/ | grep -q "<title>Job Radar</title>"
+          curl -sf http://127.0.0.1:8799/app.js > /dev/null
+          curl -sf -X POST -H "Content-Type: application/json" -d "{}" http://127.0.0.1:8799/api/refresh | grep -q '"demo": true'
+          echo "Program works."
+          if [ "$RUNNER_OS" = Windows ]; then taskkill //IM JobRadar.exe //F; else kill $pid; fi
+
+      - name: Package
+        run: |
+          mkdir -p out
+          case "$RUNNER_OS" in
+            Windows) 7z a "out/${{ matrix.asset }}" ./dist/JobRadar.exe ;;
+            macOS)   (cd dist && zip -q "../out/${{ matrix.asset }}" JobRadar) ;;
+            Linux)   tar -C dist -czf "out/${{ matrix.asset }}" JobRadar ;;
+          esac
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: job-scraper/out/${{ matrix.asset }}
+          if-no-files-found: error
+
+  release:
+    name: Publish download page
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+
+      - name: Replace the "job-radar" release with this build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cat > notes.md <<'EOF'
+          ## Download Job Radar
+
+          | Your computer | Download |
+          |---|---|
+          | Windows 10 / 11 | **JobRadar-Windows.zip** |
+          | Mac (Apple Silicon: M1 or newer) | **JobRadar-macOS.zip** |
+          | Linux | **JobRadar-Linux.tar.gz** |
+
+          **Windows:** unzip, then double-click `JobRadar.exe`. If Windows shows "Windows protected your PC", click **More info** → **Run anyway**. That warning appears for any app that isn't from a known publisher.
+
+          **Mac:** unzip, then double-click `JobRadar`. If macOS says it can't verify the developer, open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**. Then open it again.
+
+          A small window opens, and Job Radar appears in your web browser. Keep that window open while you use the app. Close it to quit.
+          Your saved jobs and settings are kept in the `.jobscraper` folder in your home folder.
+          EOF
+          echo "Built from commit ${GITHUB_SHA::7}." >> notes.md
+          gh release delete job-radar --cleanup-tag --yes || true
+          sleep 3
+          gh release create job-radar assets/* --target "$GITHUB_SHA" --title "Job Radar" --notes-file notes.md --latest
