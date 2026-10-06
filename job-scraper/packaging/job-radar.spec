@@ -8,7 +8,10 @@ root = Path(SPECPATH).parent
 a = Analysis(
     [str(root / "packaging" / "launcher.py")],
     pathex=[str(root)],
-    datas=[(str(root / "jobscraper" / "web"), "jobscraper/web")],
+    datas=[
+        (str(root / "jobscraper" / "web"), "jobscraper/web"),
+        (str(root / "jobscraper" / "data"), "jobscraper/data"),  # ZIP code / city map for "Near"
+    ],
     excludes=["tkinter", "unittest", "pydoc"],
 )
 pyz = PYZ(a.pure)

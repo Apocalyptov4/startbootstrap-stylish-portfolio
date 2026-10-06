@@ -2,7 +2,7 @@
 
 const SOURCE_NAMES = {
   remoteok: "RemoteOK", remotive: "Remotive", arbeitnow: "Arbeitnow", hackernews: "Hacker News",
-  greenhouse: "Greenhouse", lever: "Lever", ashby: "Ashby", demo: "Demo",
+  greenhouse: "Greenhouse", lever: "Lever", ashby: "Ashby", adzuna: "Adzuna", demo: "Demo",
 };
 const BOARDS = {
   remoteok: "Remote jobs, mostly tech",
@@ -35,14 +35,134 @@ const store = {
   set(k, v) { try { localStorage.setItem("jobradar:" + k, JSON.stringify(v)); } catch { /* private mode */ } },
 };
 
-const DEFAULT_FILTERS = { q: "", loc: "", exclude: "", remote: false, days: "", hiddenSources: [], tab: "all", sort: "newest" };
+const DEFAULT_FILTERS = {
+  q: "", loc: "", radius: "25", withRemote: true, exclude: "", remote: false, days: "", hiddenSources: [], tab: "all", sort: "newest",
+};
 const state = {
   data: null,
   filters: { ...DEFAULT_FILTERS, ...store.get("filters", {}) },
   selected: null,
   shown: PAGE,
   draftConfig: null,
+  near: { status: "empty", place: null },
 };
+
+// ---------------------------------------------------------------- places (ZIP code / city lookup)
+// Mirrors jobscraper/geo.py. The data (places.json, ~700 KB) is only downloaded once someone uses "Near".
+
+const US_STATES = {
+  alabama: "AL", alaska: "AK", arizona: "AZ", arkansas: "AR", california: "CA", colorado: "CO", connecticut: "CT",
+  delaware: "DE", "district of columbia": "DC", florida: "FL", georgia: "GA", hawaii: "HI", idaho: "ID", illinois: "IL",
+  indiana: "IN", iowa: "IA", kansas: "KS", kentucky: "KY", louisiana: "LA", maine: "ME", maryland: "MD",
+  massachusetts: "MA", michigan: "MI", minnesota: "MN", mississippi: "MS", missouri: "MO", montana: "MT",
+  nebraska: "NE", nevada: "NV", "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY",
+  "north carolina": "NC", "north dakota": "ND", ohio: "OH", oklahoma: "OK", oregon: "OR", pennsylvania: "PA",
+  "rhode island": "RI", "south carolina": "SC", "south dakota": "SD", tennessee: "TN", texas: "TX", utah: "UT",
+  vermont: "VT", virginia: "VA", washington: "WA", "west virginia": "WV", wisconsin: "WI", wyoming: "WY", "puerto rico": "PR",
+};
+const STATE_ABBREVS = new Set(Object.values(US_STATES));
+const CITY_ALIASES = {
+  nyc: "new york|NY", "new york city": "new york|NY", manhattan: "new york|NY", sf: "san francisco|CA",
+  la: "los angeles|CA", dc: "washington|DC", "washington dc": "washington|DC", "washington d.c.": "washington|DC",
+  philly: "philadelphia|PA", "bay area": "san francisco|CA", "sf bay area": "san francisco|CA",
+};
+const BIG_CITY_MIN_ZIPS = 15;
+const places = { data: null, status: "idle", biggest: null, cache: new Map() };
+
+function loadPlaces() {
+  if (places.status !== "idle") return;
+  places.status = "loading";
+  fetch(STATIC ? "places.json" : "/places.json")
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+    .then((d) => {
+      places.data = d;
+      places.biggest = {};
+      for (const [key, v] of Object.entries(d.cities)) {
+        const name = key.split("|")[0];
+        const cur = places.biggest[name];
+        if (!cur || v[2] > d.cities[cur][2]) places.biggest[name] = key;
+      }
+      places.status = "ready";
+      render();
+    })
+    .catch(() => { places.status = "failed"; render(); });
+}
+
+const titleCase = (s) => s.replace(/\b\w/g, (c) => c.toUpperCase());
+
+function cityKeyPlace(key) {
+  const [city, st] = key.split("|");
+  const v = places.data.cities[key];
+  return v ? { lat: v[0], lon: v[1], label: `${titleCase(city)}, ${st}` } : null;
+}
+
+function stateCode(text) {
+  const t = text.trim().replace(/\.$/, "");
+  return STATE_ABBREVS.has(t.toUpperCase()) ? t.toUpperCase() : US_STATES[t.toLowerCase()] || null;
+}
+
+function cityPlace(name, st) {
+  name = name.trim().toLowerCase().replace(/\s+/g, " ");
+  if (!st && CITY_ALIASES[name]) return cityKeyPlace(CITY_ALIASES[name]);
+  name = name.replace(/^(greater|downtown|metro)\s+/, "").replace(/^(st\.?|ste\.?)\s+/, "saint ")
+    .replace(/\s+(area|metro area|metropolitan area)$/, "");
+  if (st) return cityKeyPlace(`${name}|${st}`);
+  if (CITY_ALIASES[name]) return cityKeyPlace(CITY_ALIASES[name]);
+  const best = places.biggest[name];
+  return best && places.data.cities[best][2] >= BIG_CITY_MIN_ZIPS ? cityKeyPlace(best) : null;
+}
+
+/** "60614", "Austin, TX", "austin texas", "Chicago" -> {lat, lon, label} or null. Needs places loaded. */
+function lookupPlace(text) {
+  const t = (text || "").trim();
+  if (!t) return null;
+  if (places.cache.has(t)) return places.cache.get(t);
+  let hit = null;
+  const zip = t.match(/^(\d{5})(?:-\d{4})?$/);
+  if (zip) {
+    const z = places.data.zips[zip[1]];
+    hit = z ? { lat: z[0], lon: z[1], label: zip[1] } : null;
+  } else if (t.includes(",")) {
+    const [city, rest] = [t.slice(0, t.indexOf(",")), t.slice(t.indexOf(",") + 1)];
+    const st = stateCode(rest.split(",")[0]);
+    hit = st ? cityPlace(city, st) : null;
+  } else {
+    const words = t.split(/\s+/);
+    for (const n of [2, 1]) {
+      const st = words.length > n ? stateCode(words.slice(-n).join(" ")) : null;
+      if (st && (hit = cityPlace(words.slice(0, -n).join(" "), st))) break;
+    }
+    hit = hit || cityPlace(t, null);
+  }
+  places.cache.set(t, hit);
+  return hit;
+}
+
+function milesBetween(a, b) {
+  const rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad;
+  const dLon = (b.lon - a.lon) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * 3958.8 * Math.asin(Math.sqrt(h));
+}
+
+/** What the "Near" box currently means: empty, loading, found (with a place) or unknown (match text). */
+function resolveNear(text) {
+  if (!text.trim()) return { status: "empty", place: null };
+  if (places.status !== "ready") {
+    loadPlaces();
+    return { status: places.status === "failed" ? "unknown" : "loading", place: null };
+  }
+  const place = lookupPlace(text);
+  return place ? { status: "found", place } : { status: "unknown", place: null };
+}
+
+function areaCovers(place) {
+  return (state.data?.config?.areas || []).some((a) => {
+    const p = places.status === "ready" ? lookupPlace(a.where) : null;
+    return p && milesBetween(p, place) <= Math.max(5, a.miles / 2);
+  });
+}
 
 // ---------------------------------------------------------------- API
 
@@ -132,7 +252,17 @@ function matches(job, f, { ignoreSource = false } = {}) {
     const age = ageDays(job);
     if (age != null && age > Number(f.days)) return false;
   }
-  if (f.loc.trim()) {
+  const near = state.near;
+  if (near.status === "found") {
+    if (job.lat != null) {
+      job._dist = milesBetween(near.place, job);
+      if (job._dist > Number(f.radius)) return false;
+    } else {
+      job._dist = null;
+      if (!(f.withRemote && job.remote)) return false;
+    }
+  } else if (f.loc.trim()) {
+    // Not a known US place (yet): match the location text, e.g. "Berlin" or "London, Remote".
     const locs = f.loc.toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
     const where = (job.location || "").toLowerCase();
     if (!locs.some((l) => where.includes(l) || (l === "remote" && job.remote))) return false;
@@ -160,9 +290,10 @@ function inTab(job, tab) {
 function sortJobs(list, how) {
   const by = {
     newest: (a, b) => (Date.parse(b.posted_at) || 0) - (Date.parse(a.posted_at) || 0),
+    nearest: (a, b) => (a._dist ?? 1e9) - (b._dist ?? 1e9) || (Date.parse(b.posted_at) || 0) - (Date.parse(a.posted_at) || 0),
     company: (a, b) => a.company.localeCompare(b.company) || a.title.localeCompare(b.title),
     title: (a, b) => a.title.localeCompare(b.title),
-  }[how];
+  }[how === "nearest" && state.near.status !== "found" ? "newest" : how];
   return list.sort(by);
 }
 
@@ -176,6 +307,22 @@ function relTime(iso) {
   const d = Math.floor(mins / 1440);
   if (d < 30) return `${d}d ago`;
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function renderNear() {
+  const f = state.filters;
+  const { status, place } = state.near;
+  const hint = $("nearHint");
+  hint.className = status === "found" ? "ok" : status === "unknown" ? "warn" : "";
+  hint.textContent = {
+    empty: "e.g. 60614 or Austin, TX",
+    loading: "Looking up that place…",
+    found: place ? `Within ${f.radius} mi of ${place.label}` : "",
+    unknown: "Not a US ZIP code or city I know, so matching the location text instead.",
+  }[status];
+  const btn = $("moreNearBtn");
+  btn.hidden = STATIC || status !== "found" || areaCovers(place);
+  if (!btn.hidden) btn.textContent = `Get more jobs near ${place.label}`;
 }
 
 function renderStatus() {
@@ -194,6 +341,8 @@ function render() {
   store.set("filters", f);
 
   renderStatus();
+  state.near = resolveNear(f.loc);
+  renderNear();
   const nSites = d.sources.length;
   const errs = Object.entries(d.errors || {});
   if (d.demo) {
@@ -257,12 +406,14 @@ const TAB_EMPTY = {
 
 // "greenhouse:stripe" -> "Stripe (Greenhouse)", "remoteok" -> "RemoteOK"
 function sourceLabel(label) {
+  if (label.startsWith("adzuna:")) return `Adzuna near ${label.slice(7)}`;
   const [src, slug] = label.split(":");
   const name = SOURCE_NAMES[src] || src;
   return slug ? `${slug.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())} (${name})` : name;
 }
 
 function friendlyError(msg) {
+  if (/Adzuna/.test(msg)) return msg.replace(/^AdzunaError:\s*/, "");
   if (/404/.test(msg)) return "not found. Check the company name in Settings.";
   if (/403|Tunnel|Proxy/i.test(msg)) return "the site refused the connection (network blocked?)";
   if (/429/.test(msg)) return "too many requests. Try again later.";
@@ -297,7 +448,9 @@ function actionButtons(job, cls = "act", labels = false) {
 function jobCard(j) {
   const selected = state.selected === j.key;
   const loc = j.location || (j.remote ? "Remote" : "");
+  const dist = state.near.status === "found" && j._dist != null ? j._dist : null;
   const meta = [
+    dist != null ? `<span class="chip dist">${dist < 1 ? "under 1 mi" : `${Math.round(dist)} mi`}</span>` : "",
     j.is_new ? `<span class="chip new">New</span>` : "",
     j.status === "applied" ? `<span class="chip status-applied">Applied</span>` : "",
     j.remote ? `<span class="chip remote">Remote</span>` : "",
@@ -328,6 +481,7 @@ function renderDetail() {
     ["Posted", j.posted_at ? `${new Date(j.posted_at).toLocaleDateString(undefined, { dateStyle: "medium" })} (${relTime(j.posted_at)})` : "Unknown"],
     ["Found on", SOURCE_NAMES[j.source] || j.source],
   ];
+  if (state.near.status === "found" && j._dist != null) facts.splice(1, 0, ["Distance", `about ${Math.max(1, Math.round(j._dist))} mi from ${state.near.place.label}`]);
   el.innerHTML = `<div class="detail-inner">
     <button class="btn ghost small back" data-action="close">${ICONS.back}Back to list</button>
     <div>
@@ -360,8 +514,9 @@ function parseCompanyInput(raw) {
   return { ats: null, slug: s };
 }
 
-function openSettings() {
+function openSettings(message) {
   state.draftConfig = structuredClone(state.data.config);
+  state.draftConfig.areas = state.draftConfig.areas || [];
   if (STATIC) {
     // The website can't change its own settings; they live in sources.json in the repository.
     const repo = state.data.repo;
@@ -369,8 +524,14 @@ function openSettings() {
     $("editOnGithub").hidden = !repo;
     document.querySelector(".modal-foot [value=cancel]").textContent = "Close";
   }
-  $("settingsError").hidden = true;
-  $("slugInput").value = "";
+  $("settingsError").textContent = message || "";
+  $("settingsError").hidden = !message;
+  for (const id of ["slugInput", "areaWhere", "areaWhat", "adzunaId", "adzunaKey"]) $(id).value = "";
+  const hasKeys = state.data.config.adzuna?.has_keys;
+  $("adzunaStatus").innerHTML = hasKeys
+    ? `<span class="key-status-ok">✓ Adzuna codes saved.</span> Type new ones below only if you want to replace them.`
+    : `Search areas need free Adzuna codes. Sign up at <a href="https://developer.adzuna.com/signup" target="_blank" rel="noopener">developer.adzuna.com</a>,
+       then copy the <b>App ID</b> and <b>App Key</b> from your Adzuna dashboard into these boxes.`;
   renderSettings();
   $("settings").showModal();
 }
@@ -389,6 +550,48 @@ function renderSettings() {
     });
   }
   $("companyList").innerHTML = items.join("") || `<li class="none">No companies yet.</li>`;
+  $("areaList").innerHTML = cfg.areas.map((a, i) => {
+    const text = `${a.where} · ${a.miles} mi${a.what ? ` · “${a.what}”` : ""}`;
+    return `<li>${esc(text)}<button type="button" data-remove-area="${i}" aria-label="Remove ${esc(text)}">✕</button></li>`;
+  }).join("") || `<li class="none">No search areas yet. Add your ZIP code to see local jobs.</li>`;
+}
+
+function addArea() {
+  const where = $("areaWhere").value.trim().replace(/\s+/g, " ");
+  const what = $("areaWhat").value.trim().replace(/\s+/g, " ");
+  const err = $("settingsError");
+  if (!/^[A-Za-z0-9][A-Za-z0-9 .,'-]{0,79}$/.test(where)) {
+    err.textContent = where ? "That doesn't look like a ZIP code or city." : "Type a ZIP code or city first.";
+    err.hidden = false;
+    return;
+  }
+  const areas = state.draftConfig.areas;
+  if (!areas.some((a) => a.where.toLowerCase() === where.toLowerCase() && a.what.toLowerCase() === what.toLowerCase())) {
+    areas.push({ where, miles: Number($("areaMiles").value), what });
+  }
+  err.hidden = true;
+  $("areaWhere").value = "";
+  $("areaWhat").value = "";
+  renderSettings();
+  $("areaWhere").focus();
+}
+
+/** "Get more jobs near …": add what's in the Near box as a search area, then refresh. */
+async function searchNearHere() {
+  const f = state.filters;
+  const cfg = structuredClone(state.data.config);
+  cfg.areas = [...(cfg.areas || []), { where: f.loc.trim(), miles: Number(f.radius), what: "" }];
+  try {
+    state.data.config = await api("/api/config", cfg, "PUT");
+  } catch (e) {
+    showBanner(`Couldn't add that area: ${esc(e.message)}`, true);
+    return;
+  }
+  if (!state.data.config.adzuna?.has_keys) {
+    openSettings(`Added ${f.loc.trim()} as a search area. Paste your Adzuna codes below, then press “Save & refresh”.`);
+    return;
+  }
+  refresh();
 }
 
 function addCompany() {
@@ -411,7 +614,12 @@ function addCompany() {
 
 async function saveSettings() {
   try {
-    const cfg = await api("/api/config", state.draftConfig, "PUT");
+    const body = {
+      ...state.draftConfig,
+      // blank = keep the codes already saved (the page is never sent them)
+      adzuna: { app_id: $("adzunaId").value.trim(), app_key: $("adzunaKey").value.trim(), max_pages: state.draftConfig.adzuna?.max_pages },
+    };
+    const cfg = await api("/api/config", body, "PUT");
     state.data.config = cfg;
     $("settings").close();
     refresh();
@@ -431,12 +639,18 @@ function bindFilters() {
   }
   $("remote").checked = f.remote;
   $("remote").addEventListener("change", () => { f.remote = $("remote").checked; state.shown = PAGE; render(); });
+  $("radius").value = f.radius;
+  $("radius").addEventListener("change", () => { f.radius = $("radius").value; state.shown = PAGE; render(); });
+  $("withRemote").checked = f.withRemote;
+  $("withRemote").addEventListener("change", () => { f.withRemote = $("withRemote").checked; state.shown = PAGE; render(); });
 }
 
 function resetFilters() {
   Object.assign(state.filters, { ...DEFAULT_FILTERS, tab: state.filters.tab, sort: state.filters.sort });
   for (const id of ["q", "loc", "exclude", "days"]) $(id).value = "";
   $("remote").checked = false;
+  $("radius").value = DEFAULT_FILTERS.radius;
+  $("withRemote").checked = DEFAULT_FILTERS.withRemote;
   render();
 }
 
@@ -475,6 +689,12 @@ document.addEventListener("click", (e) => {
   if (action === "refresh") refresh();
   if (action === "reset") resetFilters();
   if (action === "close") selectJob(null);
+  const rmArea = t.closest("[data-remove-area]");
+  if (rmArea) {
+    state.draftConfig.areas.splice(Number(rmArea.dataset.removeArea), 1);
+    renderSettings();
+    return;
+  }
   const rm = t.closest("[data-remove]");
   if (rm) {
     const [ats, i] = rm.dataset.remove.split(":");
@@ -492,14 +712,18 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && state.selected && !$("settings").open) selectJob(null);
   if (e.key === "Enter" && document.activeElement?.matches(".job[data-key]")) selectJob(document.activeElement.dataset.key);
   if (e.key === "Enter" && document.activeElement === $("slugInput")) { e.preventDefault(); addCompany(); }
+  if (e.key === "Enter" && ["areaWhere", "areaWhat"].includes(document.activeElement?.id)) { e.preventDefault(); addArea(); }
+  if (e.key === "Enter" && ["adzunaId", "adzunaKey"].includes(document.activeElement?.id)) e.preventDefault();
 });
 
 $("refreshBtn").addEventListener("click", refresh);
-$("settingsBtn").addEventListener("click", openSettings);
+$("settingsBtn").addEventListener("click", () => openSettings());
 $("filtersBtn").addEventListener("click", () => toggleSidebar(!$("sidebar").classList.contains("open")));
 $("resetBtn").addEventListener("click", resetFilters);
 $("moreBtn").addEventListener("click", () => { state.shown += PAGE; render(); });
 $("addCompanyBtn").addEventListener("click", addCompany);
+$("addAreaBtn").addEventListener("click", addArea);
+$("moreNearBtn").addEventListener("click", searchNearHere);
 $("settingsForm").addEventListener("submit", (e) => {
   if (e.submitter?.value === "save") { e.preventDefault(); saveSettings(); }
 });

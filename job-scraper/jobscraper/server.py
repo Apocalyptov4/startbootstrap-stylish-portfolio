@@ -11,7 +11,6 @@ import argparse
 import copy
 import json
 import logging
-import re
 import sys
 import threading
 import webbrowser
@@ -21,51 +20,23 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-from . import demo
-from .scraper import Filters, dedupe, run
-from .sources import BOARD_SOURCES, COMPANY_SOURCES, build_sources
+from . import demo, geo
+from .config import DEFAULT_CONFIG, public_config, validate_config  # noqa: F401 (re-exported)
+from .scraper import Filters, add_coordinates, carry_over, dedupe, run
+from .sources import build_sources
 from .state import SeenStore
 
 log = logging.getLogger("jobscraper")
 
 WEB_DIR = Path(__file__).parent / "web"
 STATIC = {
-    "/": ("index.html", "text/html; charset=utf-8"),
-    "/app.js": ("app.js", "text/javascript; charset=utf-8"),
-    "/style.css": ("style.css", "text/css; charset=utf-8"),
+    "/": (WEB_DIR / "index.html", "text/html; charset=utf-8"),
+    "/app.js": (WEB_DIR / "app.js", "text/javascript; charset=utf-8"),
+    "/style.css": (WEB_DIR / "style.css", "text/css; charset=utf-8"),
+    "/places.json": (geo.PLACES_FILE, "application/json; charset=utf-8"),
 }
-SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$")
 STATUSES = {"saved", "applied", "hidden"}
 FORGET_AFTER_DAYS = 90
-DEFAULT_CONFIG = {
-    "boards": {name: True for name in BOARD_SOURCES},
-    "companies": {ats: [] for ats in COMPANY_SOURCES},
-}
-
-
-def validate_config(cfg: dict) -> dict:
-    """Normalise a config sent by the browser; raises ValueError on bad input."""
-    if not isinstance(cfg, dict):
-        raise ValueError("config must be an object")
-    boards_in = cfg.get("boards") or {}
-    companies_in = cfg.get("companies") or {}
-    boards = {name: bool(boards_in.get(name)) for name in BOARD_SOURCES}
-    companies: dict[str, list] = {}
-    for ats in COMPANY_SOURCES:
-        entries, seen = [], set()
-        for e in companies_in.get(ats) or []:
-            slug = e if isinstance(e, str) else (e or {}).get("slug")
-            name = None if isinstance(e, str) else (e or {}).get("name")
-            slug = (slug or "").strip()
-            if not SLUG_RE.match(slug):
-                raise ValueError(f"'{slug}' is not a valid {ats} company id (letters, digits, - _ . only)")
-            if slug.lower() in seen:
-                continue
-            seen.add(slug.lower())
-            name = (name or "").strip()[:100]
-            entries.append({"slug": slug, "name": name} if name else slug)
-        companies[ats] = entries
-    return {"boards": boards, "companies": companies}
 
 
 class Store:
@@ -79,7 +50,11 @@ class Store:
         self.lock = threading.Lock()
         self.refresh_lock = threading.Lock()
         self.refreshing = False
-        self.config = self._load("config.json", DEFAULT_CONFIG)
+        try:
+            self.config = validate_config(self._load("config.json", DEFAULT_CONFIG))
+        except ValueError:
+            log.warning("Saved settings were invalid; starting from the defaults.")
+            self.config = validate_config(DEFAULT_CONFIG)
         self.tracking: dict[str, dict] = self._load("tracking.json", {})
         self.cache: dict | None = self._load("jobs.json", None)
 
@@ -103,17 +78,17 @@ class Store:
             return {
                 **cache,
                 "jobs": jobs,
-                "config": self.config,
+                "config": public_config(self.config),
                 "demo": self.demo,
                 "refreshing": self.refreshing,
             }
 
     def set_config(self, cfg: dict) -> dict:
-        cfg = validate_config(cfg)
         with self.lock:
+            cfg = validate_config(cfg, previous=self.config)
             self.config = cfg
             self._save("config.json", cfg)
-        return cfg
+        return public_config(cfg)
 
     def set_status(self, key: str, status: str | None) -> None:
         if status is not None and status not in STATUSES:
@@ -133,6 +108,7 @@ class Store:
                 if self.demo:
                     raw = demo.jobs()
                     jobs, fetched, errors, labels = dedupe(raw), len(raw), {}, ["demo"]
+                    add_coordinates(jobs)
                 else:
                     sources = build_sources(self.config)
                     result = run(sources, Filters(), session=self.session)
@@ -155,6 +131,13 @@ class Store:
                 t["last_seen"] = now
                 # "New" = appeared since the previous refresh (nothing is new on the very first one).
                 out.append({**j.to_dict(), "key": key, "is_new": bool(previous) and first_seen > previous})
+            # Keep recent area-search jobs from earlier refreshes: each refresh only gets the newest few hundred.
+            carried = carry_over(out, (self.cache or {}).get("jobs") or [], self.config.get("areas") or [])
+            for j in carried[len(out):]:
+                j["is_new"] = False
+                j.pop("status", None)
+                self.tracking.setdefault(j["key"], {})["last_seen"] = now
+            out = carried
             cutoff = (datetime.now(timezone.utc) - timedelta(days=FORGET_AFTER_DAYS)).isoformat()
             self.tracking = {
                 k: v for k, v in self.tracking.items() if v.get("status") or v.get("last_seen", now) >= cutoff
@@ -202,8 +185,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/state":
             return self._json(self.store.state())
         if path in STATIC:
-            name, ctype = STATIC[path]
-            return self._send(200, (WEB_DIR / name).read_bytes(), ctype)
+            file, ctype = STATIC[path]
+            return self._send(200, file.read_bytes(), ctype)
         self._error(HTTPStatus.NOT_FOUND, "not found")
 
     def do_POST(self):

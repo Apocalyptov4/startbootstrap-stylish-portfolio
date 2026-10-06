@@ -1,0 +1,101 @@
+{
+ "__CLASS__": "Adzuna::API::Response::JobSearchResults",
+ "count": 3,
+ "mean": 61000,
+ "results": [
+  {
+   "__CLASS__": "Adzuna::API::Response::Job",
+   "id": "4000000001",
+   "title": "<strong>Registered Nurse</strong> - Night Shift",
+   "description": "We are hiring a <strong>caring</strong> team member &amp; more...",
+   "created": "2026-10-05T12:00:00Z",
+   "redirect_url": "https://www.adzuna.com/land/ad/4000000001",
+   "company": {
+    "display_name": "Northside Clinic",
+    "__CLASS__": "Adzuna::API::Response::Company"
+   },
+   "location": {
+    "display_name": "Chicago, Cook County, Illinois",
+    "area": [
+     "US",
+     "Illinois",
+     "Cook County",
+     "Chicago"
+    ]
+   },
+   "latitude": 41.92,
+   "longitude": -87.65,
+   "salary_min": 70000,
+   "salary_max": 90000,
+   "salary_is_predicted": "0",
+   "contract_time": "full_time",
+   "contract_type": "permanent",
+   "category": {
+    "label": "Healthcare & Nursing Jobs",
+    "tag": "healthcare-nursing-jobs"
+   }
+  },
+  {
+   "__CLASS__": "Adzuna::API::Response::Job",
+   "id": "4000000002",
+   "title": "Cashier",
+   "description": "We are hiring a <strong>caring</strong> team member &amp; more...",
+   "created": "2026-10-05T12:00:00Z",
+   "redirect_url": "https://www.adzuna.com/land/ad/4000000002",
+   "company": {
+    "display_name": "Corner Market",
+    "__CLASS__": "Adzuna::API::Response::Company"
+   },
+   "location": {
+    "display_name": "Evanston, Cook County, Illinois",
+    "area": [
+     "US",
+     "Illinois",
+     "Cook County",
+     "Evanston"
+    ]
+   },
+   "latitude": 42.04,
+   "longitude": -87.69,
+   "salary_min": 31000,
+   "salary_max": 31000,
+   "salary_is_predicted": "1",
+   "contract_time": "full_time",
+   "contract_type": "permanent",
+   "category": {
+    "label": "Healthcare & Nursing Jobs",
+    "tag": "healthcare-nursing-jobs"
+   }
+  },
+  {
+   "__CLASS__": "Adzuna::API::Response::Job",
+   "id": "4000000003",
+   "title": "Warehouse Associate",
+   "description": "We are hiring a <strong>caring</strong> team member &amp; more...",
+   "created": "2026-10-05T12:00:00Z",
+   "redirect_url": "https://www.adzuna.com/land/ad/4000000003",
+   "company": {
+    "display_name": "Northside Clinic",
+    "__CLASS__": "Adzuna::API::Response::Company"
+   },
+   "location": {
+    "display_name": "Illinois",
+    "area": [
+     "US",
+     "Illinois"
+    ]
+   },
+   "latitude": null,
+   "longitude": null,
+   "salary_min": null,
+   "salary_max": null,
+   "salary_is_predicted": "0",
+   "contract_time": "full_time",
+   "contract_type": "permanent",
+   "category": {
+    "label": "Healthcare & Nursing Jobs",
+    "tag": "healthcare-nursing-jobs"
+   }
+  }
+ ]
+}

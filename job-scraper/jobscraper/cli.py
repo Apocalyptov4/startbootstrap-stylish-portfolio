@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -51,7 +52,12 @@ def main(argv=None) -> int:
     )
     logging.getLogger("urllib3").setLevel(logging.ERROR)  # retries are summarised per source instead
 
-    config = json.loads(Path(args.config).read_text(encoding="utf-8")) if args.config else DEFAULT_CONFIG
+    config = json.loads(Path(args.config).read_text(encoding="utf-8")) if args.config else dict(DEFAULT_CONFIG)
+    # Adzuna codes can come from the environment so they never have to be written into a config file.
+    az = dict(config.get("adzuna") or {})
+    az.setdefault("app_id", os.environ.get("ADZUNA_APP_ID", ""))
+    az.setdefault("app_key", os.environ.get("ADZUNA_APP_KEY", ""))
+    config["adzuna"] = az
     only = {s.strip() for s in args.sources.split(",")} if args.sources else None
     if only and (unknown := only - set(ALL_SOURCE_NAMES)):
         print(f"unknown source(s): {', '.join(sorted(unknown))}", file=sys.stderr)

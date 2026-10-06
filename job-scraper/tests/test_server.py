@@ -48,6 +48,9 @@ class ServerTests(unittest.TestCase):
             status, body = self.call(path)
             self.assertEqual(status, 200)
             self.assertIn(needle, body)
+        status, places = self.call("/places.json")
+        self.assertEqual(status, 200)
+        self.assertEqual(places["zips"]["60614"], [41.922, -87.649])
         self.assertEqual(self.call("/nope")[0], 404)
 
     def test_refresh_then_state(self):

@@ -21,6 +21,9 @@ class Job:
     tags: list[str] = field(default_factory=list)
     salary: str = ""
     description: str = ""  # plain text, possibly truncated
+    lat: Optional[float] = None   # map position, when the location is a known US place
+    lon: Optional[float] = None
+    area: str = ""         # for area searches (Adzuna): the ZIP/city searched around
 
     @property
     def uid(self) -> str:
@@ -28,9 +31,22 @@ class Job:
         return f"{self.source}:{self.source_id}"
 
     @property
-    def dedup_key(self) -> tuple[str, str]:
-        """Same role posted on several boards collapses to one entry."""
-        return (_norm(self.company), _norm(self.title))
+    def dedup_key(self) -> tuple[str, str, str]:
+        """Same role at the same place, posted on several boards, collapses to one entry.
+
+        The place is part of the key so a chain hiring for one title at many
+        branches keeps one listing per branch.
+        """
+        from . import geo
+
+        place = geo.locate_job(self.location)
+        if place:
+            where = place.label.lower()
+        elif self.remote:
+            where = "remote"
+        else:
+            where = _norm(self.location)
+        return (_norm(self.company), _norm(self.title), where)
 
     def to_dict(self) -> dict:
         d = asdict(self)

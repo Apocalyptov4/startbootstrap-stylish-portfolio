@@ -59,6 +59,7 @@ jobs:
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:8799/api/state > /dev/null && break; sleep 1; done
           curl -sf http://127.0.0.1:8799/ | grep -q "<title>Job Radar</title>"
           curl -sf http://127.0.0.1:8799/app.js > /dev/null
+          curl -sf http://127.0.0.1:8799/places.json | grep -q '"60614"'
           curl -sf -X POST -H "Content-Type: application/json" -d "{}" http://127.0.0.1:8799/api/refresh | grep -q '"demo": true'
           echo "Program works."
           if [ "$RUNNER_OS" = Windows ]; then taskkill //IM JobRadar.exe //F; else kill $pid; fi
